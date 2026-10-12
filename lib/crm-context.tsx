@@ -7,19 +7,24 @@ import { quoteProduct } from "@/lib/pricing";
 import { productById } from "@/lib/products";
 import { createSeed } from "@/lib/seed";
 import type {
+  CallStatus,
   Company,
   Contact,
   CrmData,
   Deal,
   DealStage,
   DiscountId,
+  Lead,
   Offer,
   OfferLine,
   PriceMode,
+  SellerNote,
   Task,
 } from "@/lib/types";
 
-const STORAGE_KEY = "telpcrm.v1";
+const STORAGE_KEY = "telpcrm.v2";
+const LEGACY_KEY = "telpcrm.v1";
+const DEFAULT_SELLER = "s-marina";
 
 const EMPTY: CrmData = {
   companies: [],
@@ -27,6 +32,9 @@ const EMPTY: CrmData = {
   deals: [],
   offers: [],
   tasks: [],
+  sellers: [],
+  leads: [],
+  sellerNotes: [],
 };
 
 type Status = "loading" | "ready" | "error";
@@ -34,49 +42,79 @@ type Status = "loading" | "ready" | "error";
 type Snapshot = {
   status: Status;
   error: string | null;
+  sellerId: string;
   data: CrmData;
 };
 
-const SERVER_SNAPSHOT: Snapshot = { status: "loading", error: null, data: EMPTY };
+const SERVER_SNAPSHOT: Snapshot = { status: "loading", error: null, sellerId: "", data: EMPTY };
 
 let clientSnapshot: Snapshot | null = null;
 const listeners = new Set<() => void>();
 
-function isCrmData(value: unknown): value is CrmData {
-  if (!value || typeof value !== "object") return false;
-  const data = value as CrmData;
-  return (
-    Array.isArray(data.companies) &&
-    Array.isArray(data.contacts) &&
-    Array.isArray(data.deals) &&
-    Array.isArray(data.offers) &&
-    Array.isArray(data.tasks)
-  );
+function asArray<T>(value: unknown, fallback: T[]): T[] {
+  return Array.isArray(value) ? (value as T[]) : fallback;
+}
+
+function backfill(partial: Partial<CrmData>): CrmData {
+  const seed = createSeed();
+  return {
+    companies: asArray(partial.companies, seed.companies),
+    contacts: asArray(partial.contacts, seed.contacts),
+    deals: asArray(partial.deals, seed.deals),
+    offers: asArray(partial.offers, seed.offers),
+    tasks: asArray(partial.tasks, seed.tasks),
+    sellers: asArray(partial.sellers, []).length ? asArray(partial.sellers, seed.sellers) : seed.sellers,
+    leads: asArray(partial.leads, seed.leads),
+    sellerNotes: asArray(partial.sellerNotes, seed.sellerNotes),
+  };
+}
+
+function sellerOrDefault(data: CrmData, sellerId: unknown) {
+  if (typeof sellerId === "string" && data.sellers.some((seller) => seller.id === sellerId)) return sellerId;
+  return data.sellers.find((seller) => seller.id === DEFAULT_SELLER)?.id ?? data.sellers[0]?.id ?? "";
+}
+
+function parseStored(value: unknown): { data: CrmData; sellerId: string } | null {
+  if (!value || typeof value !== "object") return null;
+  const record = value as Record<string, unknown>;
+  if (record.data && typeof record.data === "object") {
+    const data = backfill(record.data as Partial<CrmData>);
+    return { data, sellerId: sellerOrDefault(data, record.sellerId) };
+  }
+  if (Array.isArray(record.companies)) {
+    const data = backfill(record as Partial<CrmData>);
+    return { data, sellerId: sellerOrDefault(data, DEFAULT_SELLER) };
+  }
+  return null;
 }
 
 function publish(next: Snapshot) {
   clientSnapshot = next;
-  if (next.status === "ready") localStorage.setItem(STORAGE_KEY, JSON.stringify(next.data));
+  if (next.status === "ready") {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ sellerId: next.sellerId, data: next.data }));
+  }
   listeners.forEach((listener) => listener());
 }
 
 function readClient(): Snapshot {
   if (clientSnapshot) return clientSnapshot;
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(STORAGE_KEY) ?? localStorage.getItem(LEGACY_KEY);
     if (!raw) {
       const data = createSeed();
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-      clientSnapshot = { status: "ready", error: null, data };
+      clientSnapshot = { status: "ready", error: null, sellerId: DEFAULT_SELLER, data };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ sellerId: DEFAULT_SELLER, data }));
     } else {
-      const parsed: unknown = JSON.parse(raw);
-      if (!isCrmData(parsed)) throw new Error("Демо-данные в браузере повреждены.");
-      clientSnapshot = { status: "ready", error: null, data: parsed };
+      const stored = parseStored(JSON.parse(raw) as unknown);
+      if (!stored) throw new Error("Демо-данные в браузере повреждены.");
+      clientSnapshot = { status: "ready", error: null, sellerId: stored.sellerId, data: stored.data };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ sellerId: stored.sellerId, data: stored.data }));
     }
   } catch (caught) {
     clientSnapshot = {
       status: "error",
       error: caught instanceof Error ? caught.message : "Не удалось открыть демо-данные.",
+      sellerId: "",
       data: EMPTY,
     };
   }
@@ -97,7 +135,7 @@ function mutate(recipe: (draft: CrmData) => void) {
   if (current.status !== "ready") return;
   const next = structuredClone(current.data);
   recipe(next);
-  publish({ status: "ready", error: null, data: next });
+  publish({ status: "ready", error: null, sellerId: current.sellerId, data: next });
 }
 
 function nextOfferNumber(offers: Offer[]) {
@@ -126,8 +164,13 @@ function reprice(line: OfferLine, discountId: DiscountId): OfferLine {
 type CrmApi = {
   status: Status;
   error: string | null;
+  sellerId: string;
   data: CrmData;
   reset: () => void;
+  switchSeller: (id: string) => void;
+  addLead: (input: Omit<Lead, "id" | "sellerId" | "demo" | "createdAt"> & { note?: string }) => string;
+  setLeadCallStatus: (id: string, callStatus: CallStatus) => void;
+  addSellerNote: (leadId: string, text: string) => void;
   addCompany: (input: Omit<Company, "id" | "demo">) => string;
   addContact: (input: Omit<Contact, "id" | "demo">) => string;
   addDeal: (input: Omit<Deal, "id" | "updatedAt">) => string;
@@ -154,22 +197,90 @@ const CrmContext = createContext<CrmApi | null>(null);
 
 export function CrmProvider({ children }: { children: React.ReactNode }) {
   const stored = useSyncExternalStore(subscribe, readClient, getServerSnapshot);
-  const [mounted, setMounted] = useState<Snapshot | null>(null);
+  const [hydrated, setHydrated] = useState(false);
   useEffect(() => {
     // The server snapshot stays on "loading" until the browser can read localStorage.
     // eslint-disable-next-line react-hooks/set-state-in-effect -- hydrate the demo CRM after mount
-    setMounted(readClient());
+    setHydrated(true);
   }, []);
-  const snapshot = mounted ?? stored;
+  const snapshot = hydrated ? stored : SERVER_SNAPSHOT;
 
   const api = useMemo<CrmApi>(() => {
     return {
       status: snapshot.status,
       error: snapshot.error,
+      sellerId: snapshot.sellerId,
       data: snapshot.data,
       reset: () => {
-        publish({ status: "ready", error: null, data: createSeed() });
+        const data = createSeed();
+        publish({ status: "ready", error: null, sellerId: DEFAULT_SELLER, data });
         toast.success("Демо-данные восстановлены");
+      },
+      switchSeller: (id) => {
+        const current = readClient();
+        const seller = current.data.sellers.find((item) => item.id === id);
+        if (!seller || current.sellerId === id) return;
+        publish({ ...current, sellerId: id });
+        toast.success(`Вы за столом: ${seller.name}`);
+      },
+      addLead: (input) => {
+        const sellerId = readClient().sellerId;
+        const id = uid("lead");
+        const note = input.note?.trim() ?? "";
+        mutate((draft) => {
+          draft.leads.unshift({
+            id,
+            sellerId,
+            name: input.name,
+            phone: input.phone,
+            companyName: input.companyName,
+            city: input.city,
+            email: input.email,
+            segment: input.segment,
+            interest: input.interest,
+            callStatus: input.callStatus,
+            createdAt: new Date().toISOString(),
+            demo: false,
+          });
+          if (note) {
+            draft.sellerNotes.unshift({
+              id: uid("note"),
+              sellerId,
+              leadId: id,
+              text: note,
+              createdAt: new Date().toISOString(),
+            });
+          }
+        });
+        toast.success("Лид добавлен в ваш список");
+        return id;
+      },
+      setLeadCallStatus: (id, callStatus) => {
+        const sellerId = readClient().sellerId;
+        mutate((draft) => {
+          const lead = draft.leads.find((item) => item.id === id && item.sellerId === sellerId);
+          if (!lead || lead.callStatus === callStatus) return;
+          lead.callStatus = callStatus;
+        });
+      },
+      addSellerNote: (leadId, text) => {
+        const sellerId = readClient().sellerId;
+        const clean = text.trim();
+        if (!clean) return;
+        const current = readClient();
+        const lead = current.data.leads.find((item) => item.id === leadId && item.sellerId === sellerId);
+        if (!lead) return;
+        const note: SellerNote = {
+          id: uid("note"),
+          sellerId,
+          leadId,
+          text: clean,
+          createdAt: new Date().toISOString(),
+        };
+        mutate((draft) => {
+          draft.sellerNotes.unshift(note);
+        });
+        toast.success("Заметка видна только вам");
       },
       addCompany: (input) => {
         const id = uid("co");

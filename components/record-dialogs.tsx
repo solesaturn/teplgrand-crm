@@ -17,9 +17,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { ChoiceSelect } from "@/components/crm-ui";
 import { useCrm } from "@/lib/crm-context";
 import { todayIso } from "@/lib/format";
-import { SEGMENTS, STAGES, TASK_KIND } from "@/lib/labels";
+import { CALL_STATUS, SEGMENTS, STAGES, TASK_KIND } from "@/lib/labels";
 import { DISCOUNTS } from "@/lib/policy";
-import type { DealStage, DiscountId, Segment, TaskKind } from "@/lib/types";
+import type { CallStatus, DealStage, DiscountId, Segment, TaskKind } from "@/lib/types";
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -510,6 +510,122 @@ function OfferForm({ companyId, dealId, onClose }: { companyId?: string; dealId?
         {error ? <p className="text-sm text-destructive">{error}</p> : null}
         <DialogFooter>
           <Button type="submit">Открыть КП</Button>
+        </DialogFooter>
+      </form>
+    </DialogContent>
+  );
+}
+
+export function LeadDialog({
+  open,
+  onOpenChange,
+  onCreated,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onCreated?: (id: string) => void;
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      {open ? (
+        <LeadForm
+          onClose={() => onOpenChange(false)}
+          onCreated={onCreated}
+        />
+      ) : null}
+    </Dialog>
+  );
+}
+
+function LeadForm({ onClose, onCreated }: { onClose: () => void; onCreated?: (id: string) => void }) {
+  const { addLead, sellerId, data } = useCrm();
+  const seller = data.sellers.find((item) => item.id === sellerId);
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [companyName, setCompanyName] = useState("");
+  const [city, setCity] = useState("");
+  const [email, setEmail] = useState("");
+  const [segment, setSegment] = useState<Segment>("installer");
+  const [interest, setInterest] = useState("");
+  const [callStatus, setCallStatus] = useState<CallStatus>("not-called");
+  const [note, setNote] = useState("");
+  const [error, setError] = useState("");
+
+  return (
+    <DialogContent className="sm:max-w-lg!">
+      <DialogHeader>
+        <DialogTitle>Новый лид</DialogTitle>
+        <DialogDescription>
+          Попадёт в список {seller ? seller.name : "текущей учётки"}. Заметка останется только у вас.
+        </DialogDescription>
+      </DialogHeader>
+      <form
+        className="grid max-h-[70vh] gap-3 overflow-y-auto pr-1"
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (!name.trim() || !phone.trim()) {
+            setError("Укажите имя и телефон.");
+            return;
+          }
+          const id = addLead({
+            name: name.trim(),
+            phone: phone.trim(),
+            companyName: companyName.trim(),
+            city: city.trim(),
+            email: email.trim(),
+            segment,
+            interest: interest.trim(),
+            callStatus,
+            note: note.trim(),
+          });
+          onCreated?.(id);
+          onClose();
+        }}
+      >
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label="Имя">
+            <Input value={name} onChange={(event) => setName(event.target.value)} placeholder="Иван Петров" />
+          </Field>
+          <Field label="Телефон">
+            <Input value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="+7 900 000-00-00" inputMode="tel" />
+          </Field>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label="Компания или объект">
+            <Input value={companyName} onChange={(event) => setCompanyName(event.target.value)} placeholder="ООО «Пример»" />
+          </Field>
+          <Field label="Город">
+            <Input value={city} onChange={(event) => setCity(event.target.value)} />
+          </Field>
+        </div>
+        <Field label="Почта">
+          <Input value={email} onChange={(event) => setEmail(event.target.value)} type="email" />
+        </Field>
+        <Field label="Тип покупателя">
+          <ChoiceSelect
+            label="Тип покупателя"
+            value={segment}
+            onChange={(value) => setSegment(value as Segment)}
+            options={Object.entries(SEGMENTS).map(([value, label]) => ({ value, label }))}
+          />
+        </Field>
+        <Field label="Что нужно">
+          <Textarea value={interest} onChange={(event) => setInterest(event.target.value)} placeholder="Котёл, краны, объём и срок" />
+        </Field>
+        <Field label="Статус звонка">
+          <ChoiceSelect
+            label="Статус звонка"
+            value={callStatus}
+            onChange={(value) => setCallStatus(value as CallStatus)}
+            options={CALL_STATUS.map((item) => ({ value: item.id, label: item.title }))}
+          />
+        </Field>
+        <Field label="Заметка для себя">
+          <Textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder="Необязательно. Другие продавцы её не увидят." />
+        </Field>
+        {error ? <p className="text-sm text-destructive">{error}</p> : null}
+        <DialogFooter>
+          <Button type="submit">Сохранить лид</Button>
         </DialogFooter>
       </form>
     </DialogContent>

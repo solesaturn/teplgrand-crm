@@ -132,10 +132,47 @@ export type Task = {
   contactId: string | null;
 };
 
+export type CallStatus = "not-called" | "no-answer" | "callback" | "called";
+
+export type Seller = {
+  id: string;
+  name: string;
+  role: string;
+  city: string;
+  phone: string;
+  demo: boolean;
+};
+
+export type Lead = {
+  id: string;
+  sellerId: string;
+  name: string;
+  phone: string;
+  companyName: string;
+  city: string;
+  email: string;
+  segment: Segment;
+  interest: string;
+  callStatus: CallStatus;
+  createdAt: string;
+  demo: boolean;
+};
+
+export type SellerNote = {
+  id: string;
+  sellerId: string;
+  leadId: string;
+  text: string;
+  createdAt: string;
+};
+
 export type CrmData = {
   companies: Company[];
   contacts: Contact[];
   deals: Deal[];
   offers: Offer[];
   tasks: Task[];
+  sellers: Seller[];
+  leads: Lead[];
+  sellerNotes: SellerNote[];
 };

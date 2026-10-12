@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { CrmGate, DemoBadge, Money, PageHeading } from "@/components/crm-ui";
 import { useCrm } from "@/lib/crm-context";
 import { formatShortDate, todayIso } from "@/lib/format";
-import { OFFER_STATUS, OPEN_STAGES, STAGES, TASK_KIND, stageTitle } from "@/lib/labels";
+import { CALL_STATUS, OFFER_STATUS, OPEN_STAGES, STAGES, TASK_KIND, stageTitle } from "@/lib/labels";
 import { offerTotal } from "@/lib/pricing";
 
 export default function DashboardPage() {
@@ -17,7 +17,9 @@ export default function DashboardPage() {
 }
 
 function Dashboard() {
-  const { data } = useCrm();
+  const { data, sellerId } = useCrm();
+  const seller = data.sellers.find((item) => item.id === sellerId);
+  const myLeads = data.leads.filter((lead) => lead.sellerId === sellerId);
   const today = todayIso();
   const openDeals = data.deals.filter((deal) => OPEN_STAGES.includes(deal.stage));
   const openSum = openDeals.reduce((sum, deal) => sum + deal.amount, 0);
@@ -38,6 +40,35 @@ function Dashboard() {
           </Button>
         }
       />
+
+      <section className="rounded-2xl bg-card p-4 ring-1 ring-foreground/10">
+        <div className="flex items-end justify-between gap-3">
+          <div>
+            <h2 className="font-semibold">Лиды {seller ? `· ${seller.name}` : ""}</h2>
+            <p className="text-sm text-muted-foreground">Ваш обзвон. Чужие лиды и заметки сюда не попадают.</p>
+          </div>
+          <Button nativeButton={false} variant="outline" render={<Link href="/leads" />}>
+            К списку
+          </Button>
+        </div>
+        {myLeads.length === 0 ? (
+          <p className="mt-3 text-sm text-muted-foreground">В этом списке пусто. Новый лид можно завести на вкладке «Лиды».</p>
+        ) : (
+          <ul className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+            {CALL_STATUS.map((item) => {
+              const count = myLeads.filter((lead) => lead.callStatus === item.id).length;
+              return (
+                <li key={item.id}>
+                  <Link href="/leads" className="block rounded-xl bg-background px-3 py-2 ring-1 ring-foreground/10 hover:bg-accent/40">
+                    <p className="text-xs text-muted-foreground">{item.title}</p>
+                    <p className="text-xl font-semibold tabular-nums">{count}</p>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <Stat label="Открытые сделки" value={<Money value={openSum} />} hint={`${openDeals.length} в работе`} href="/pipeline" />

@@ -1,4 +1,4 @@
-import type { DealStage, OfferStatus, Segment, TaskKind } from "@/lib/types";
+import type { CallStatus, DealStage, OfferStatus, Segment, TaskKind } from "@/lib/types";
 
 export const SEGMENTS: Record<Segment, string> = {
   partner: "Партнёр",
@@ -38,3 +38,14 @@ export function stageTitle(stage: DealStage) {
 }
 
 export const OPEN_STAGES: DealStage[] = ["new", "qualify", "offer", "negotiate", "invoice"];
+
+export const CALL_STATUS: { id: CallStatus; title: string; hint: string }[] = [
+  { id: "not-called", title: "Не звонили", hint: "Ещё не набирали" },
+  { id: "no-answer", title: "Недозвон", hint: "Не взяли трубку" },
+  { id: "callback", title: "Перезвонить", hint: "Договорились набрать ещё раз" },
+  { id: "called", title: "Уже звонили", hint: "Разговор состоялся" },
+];
+
+export function callStatusTitle(status: CallStatus) {
+  return CALL_STATUS.find((item) => item.id === status)?.title ?? status;
+}

@@ -20,7 +20,7 @@ const mono = IBM_Plex_Mono({
 
 export const metadata: Metadata = {
   title: "Теплогранд — продажи",
-  description: "Рабочий стол отдела продаж: клиенты, сделки, коммерческие предложения и каталог Теплогранд.",
+  description: "Рабочий стол отдела продаж: лиды, клиенты, сделки, коммерческие предложения и каталог Теплогранд.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

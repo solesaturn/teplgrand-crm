@@ -29,6 +29,17 @@ export function formatShortDate(iso: string) {
   }).format(new Date(year, month - 1, day));
 }
 
+export function formatStamp(iso: string) {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return formatShortDate(iso);
+  return new Intl.DateTimeFormat("ru-RU", {
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
+
 export function todayIso() {
   const now = new Date();
   const month = String(now.getMonth() + 1).padStart(2, "0");
