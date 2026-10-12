@@ -66,7 +66,7 @@ function Leads() {
           placeholder="Имя, телефон, город или что нужно"
           aria-label="Поиск лидов"
         />
-        <div className="flex gap-2 overflow-x-auto pb-1" role="group" aria-label="Статус звонка">
+        <div className="flex flex-wrap gap-2" role="group" aria-label="Статус звонка">
           <FilterChip active={status === "all"} onClick={() => setStatus("all")} label={`Все · ${mine.length}`} />
           {CALL_STATUS.map((item) => {
             const count = mine.filter((lead) => lead.callStatus === item.id).length;
@@ -113,7 +113,12 @@ function Leads() {
                 <li key={lead.id}>
                   <button
                     type="button"
-                    onClick={() => setPicked(lead.id)}
+                    onClick={() => {
+                      setPicked(lead.id);
+                      if (window.matchMedia("(max-width: 1023px)").matches) {
+                        document.getElementById("lead-desk")?.scrollIntoView({ behavior: "smooth", block: "start" });
+                      }
+                    }}
                     aria-current={on ? "true" : undefined}
                     className={cn(
                       "w-full rounded-2xl bg-card p-4 text-left ring-1 ring-foreground/10 hover:bg-accent/30",
@@ -175,7 +180,7 @@ function LeadDesk({ lead, sellerId, sellerName }: { lead: Lead; sellerId: string
   const notes = data.sellerNotes.filter((note) => note.leadId === lead.id && note.sellerId === sellerId);
 
   return (
-    <aside className="space-y-4 rounded-2xl bg-card p-4 ring-1 ring-foreground/10 lg:sticky lg:top-6">
+    <aside id="lead-desk" className="scroll-mt-4 space-y-4 rounded-2xl bg-card p-4 ring-1 ring-foreground/10 lg:sticky lg:top-6">
       <div>
         <div className="flex items-start justify-between gap-3">
           <h2 className="text-lg font-semibold">{lead.name}</h2>
