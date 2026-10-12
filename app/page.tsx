@@ -110,6 +110,7 @@ function Dashboard() {
             <ul className="mt-3 space-y-3">
               {attention.map((task) => {
                 const company = data.companies.find((item) => item.id === task.companyId);
+                const lead = data.leads.find((item) => item.id === task.leadId);
                 return (
                   <li key={task.id} className="text-sm">
                     <p className="font-medium">{task.title}</p>
@@ -117,6 +118,7 @@ function Dashboard() {
                       {TASK_KIND[task.kind]} · {formatShortDate(task.due)}
                       {task.due < today ? " · просрочено" : ""}
                       {company ? ` · ${company.name}` : ""}
+                      {lead ? ` · лид ${lead.name}` : ""}
                     </p>
                   </li>
                 );

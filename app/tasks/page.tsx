@@ -76,6 +76,7 @@ function Tasks() {
         <ul className="space-y-2">
           {shown.map((task) => {
             const company = data.companies.find((item) => item.id === task.companyId);
+            const lead = data.leads.find((item) => item.id === task.leadId);
             const overdue = !task.done && task.due < today;
             return (
               <li key={task.id} className="flex items-start gap-3 rounded-2xl bg-card p-3 ring-1 ring-foreground/10">
@@ -93,6 +94,7 @@ function Tasks() {
                     {overdue ? " · просрочено" : ""}
                     {company ? " · " : ""}
                     {company ? <Link href={`/clients/${company.id}`} className="hover:underline">{company.name}</Link> : null}
+                    {lead ? ` · лид ${lead.name}` : ""}
                   </p>
                 </div>
               </li>

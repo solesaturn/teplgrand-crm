@@ -16,12 +16,14 @@ import type {
   DiscountId,
   Lead,
   LeadGroup,
+  LeadPhone,
   Offer,
   OfferLine,
   PriceMode,
   Segment,
   SellerNote,
   Task,
+  TaskKind,
 } from "@/lib/types";
 
 const STORAGE_KEY = "telpcrm.v2";
@@ -58,25 +60,63 @@ function asArray<T>(value: unknown, fallback: T[]): T[] {
 }
 
 const SEGMENTS: Segment[] = ["partner", "installer", "trader", "private", "management"];
+const TASK_KINDS: TaskKind[] = ["call", "email", "meeting", "offer", "visit"];
+
+function normalizePhones(raw: unknown, legacyPhone: unknown, leadId: string): LeadPhone[] {
+  if (Array.isArray(raw)) {
+    const phones = raw.flatMap((item, index) => {
+      if (!item || typeof item !== "object") return [];
+      const phone = item as Partial<LeadPhone>;
+      const number = typeof phone.number === "string" ? phone.number : "";
+      const owner = typeof phone.owner === "string" ? phone.owner : "";
+      if (!number && !owner) return [];
+      return [{ id: typeof phone.id === "string" ? phone.id : `${leadId}-ph-${index}`, number, owner }];
+    });
+    if (phones.length) return phones;
+  }
+  if (typeof legacyPhone === "string" && legacyPhone.trim()) {
+    return [{ id: `${leadId}-ph`, number: legacyPhone.trim(), owner: "" }];
+  }
+  return [];
+}
 
 function normalizeLead(raw: unknown): Lead | null {
   if (!raw || typeof raw !== "object") return null;
-  const lead = raw as Partial<Lead> & { callStatus?: unknown };
+  const lead = raw as Partial<Lead> & { callStatus?: unknown; phone?: unknown };
   if (typeof lead.id !== "string" || typeof lead.name !== "string" || typeof lead.sellerId !== "string") return null;
   const segment = SEGMENTS.includes(lead.segment as Segment) ? (lead.segment as Segment) : "installer";
   return {
     id: lead.id,
     sellerId: lead.sellerId,
     name: lead.name,
-    phone: typeof lead.phone === "string" ? lead.phone : "",
+    phones: normalizePhones(lead.phones, lead.phone, lead.id),
     companyName: typeof lead.companyName === "string" ? lead.companyName : "",
     city: typeof lead.city === "string" ? lead.city : "",
     email: typeof lead.email === "string" ? lead.email : "",
     segment,
     interest: typeof lead.interest === "string" ? lead.interest : "",
     group: leadGroupFromUnknown(lead.group, lead.callStatus),
+    website: typeof lead.website === "string" ? lead.website : "",
+    mapUrl: typeof lead.mapUrl === "string" ? lead.mapUrl : "",
     createdAt: typeof lead.createdAt === "string" ? lead.createdAt : "",
     demo: Boolean(lead.demo),
+  };
+}
+
+function normalizeTask(raw: unknown): Task | null {
+  if (!raw || typeof raw !== "object") return null;
+  const task = raw as Partial<Task>;
+  if (typeof task.id !== "string" || typeof task.title !== "string") return null;
+  return {
+    id: task.id,
+    title: task.title,
+    kind: TASK_KINDS.includes(task.kind as TaskKind) ? (task.kind as TaskKind) : "call",
+    due: typeof task.due === "string" ? task.due : "",
+    done: Boolean(task.done),
+    companyId: typeof task.companyId === "string" ? task.companyId : null,
+    dealId: typeof task.dealId === "string" ? task.dealId : null,
+    contactId: typeof task.contactId === "string" ? task.contactId : null,
+    leadId: typeof task.leadId === "string" ? task.leadId : null,
   };
 }
 
@@ -87,7 +127,7 @@ function backfill(partial: Partial<CrmData>): CrmData {
     contacts: asArray(partial.contacts, seed.contacts),
     deals: asArray(partial.deals, seed.deals),
     offers: asArray(partial.offers, seed.offers),
-    tasks: asArray(partial.tasks, seed.tasks),
+    tasks: Array.isArray(partial.tasks) ? partial.tasks.map(normalizeTask).filter((task): task is Task => task !== null) : seed.tasks,
     sellers: asArray(partial.sellers, []).length ? asArray(partial.sellers, seed.sellers) : seed.sellers,
     leads: Array.isArray(partial.leads) ? partial.leads.map(normalizeLead).filter((lead): lead is Lead => lead !== null) : seed.leads,
     sellerNotes: asArray(partial.sellerNotes, seed.sellerNotes),
@@ -195,6 +235,10 @@ type CrmApi = {
   switchSeller: (id: string) => void;
   addLead: (input: Omit<Lead, "id" | "sellerId" | "demo" | "createdAt"> & { note?: string }) => string;
   setLeadGroup: (id: string, group: LeadGroup) => void;
+  updateLead: (
+    id: string,
+    patch: Partial<Pick<Lead, "name" | "phones" | "companyName" | "city" | "email" | "segment" | "interest" | "group" | "website" | "mapUrl">>,
+  ) => void;
   addSellerNote: (leadId: string, text: string) => void;
   addCompany: (input: Omit<Company, "id" | "demo">) => string;
   addContact: (input: Omit<Contact, "id" | "demo">) => string;
@@ -257,13 +301,15 @@ export function CrmProvider({ children }: { children: React.ReactNode }) {
             id,
             sellerId,
             name: input.name,
-            phone: input.phone,
+            phones: input.phones,
             companyName: input.companyName,
             city: input.city,
             email: input.email,
             segment: input.segment,
             interest: input.interest,
             group: input.group,
+            website: input.website,
+            mapUrl: input.mapUrl,
             createdAt: new Date().toISOString(),
             demo: false,
           });
@@ -286,6 +332,18 @@ export function CrmProvider({ children }: { children: React.ReactNode }) {
           const lead = draft.leads.find((item) => item.id === id && item.sellerId === sellerId);
           if (!lead || lead.group === group) return;
           lead.group = group;
+        });
+      },
+      updateLead: (id, patch) => {
+        const sellerId = readClient().sellerId;
+        const current = readClient().data.leads.find((item) => item.id === id && item.sellerId === sellerId);
+        if (!current) return;
+        const next = { ...current, ...patch };
+        if (JSON.stringify(current) === JSON.stringify(next)) return;
+        mutate((draft) => {
+          const lead = draft.leads.find((item) => item.id === id && item.sellerId === sellerId);
+          if (!lead) return;
+          Object.assign(lead, patch);
         });
       },
       addSellerNote: (leadId, text) => {

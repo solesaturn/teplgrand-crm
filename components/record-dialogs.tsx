@@ -16,10 +16,11 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { ChoiceSelect } from "@/components/crm-ui";
 import { useCrm } from "@/lib/crm-context";
-import { todayIso } from "@/lib/format";
+import { todayIso, uid } from "@/lib/format";
 import { LEAD_GROUPS, SEGMENTS, STAGES, TASK_KIND } from "@/lib/labels";
 import { DISCOUNTS } from "@/lib/policy";
-import type { DealStage, DiscountId, LeadGroup, Segment, TaskKind } from "@/lib/types";
+import { BuyerLinks, PhoneList } from "@/components/lead-fields";
+import type { DealStage, DiscountId, LeadGroup, LeadPhone, Segment, TaskKind } from "@/lib/types";
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -308,17 +309,19 @@ export function TaskDialog({
   companyId,
   dealId,
   contactId,
+  leadId,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   companyId?: string;
   dealId?: string;
   contactId?: string;
+  leadId?: string;
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       {open ? (
-        <TaskForm companyId={companyId} dealId={dealId} contactId={contactId} onClose={() => onOpenChange(false)} />
+        <TaskForm companyId={companyId} dealId={dealId} contactId={contactId} leadId={leadId} onClose={() => onOpenChange(false)} />
       ) : null}
     </Dialog>
   );
@@ -328,11 +331,13 @@ function TaskForm({
   companyId,
   dealId,
   contactId,
+  leadId,
   onClose,
 }: {
   companyId?: string;
   dealId?: string;
   contactId?: string;
+  leadId?: string;
   onClose: () => void;
 }) {
   const { data, addTask } = useCrm();
@@ -365,6 +370,7 @@ function TaskForm({
             companyId: company || null,
             dealId: deal || null,
             contactId: contactId ?? null,
+            leadId: leadId ?? null,
           });
           onClose();
         }}
@@ -541,13 +547,16 @@ function LeadForm({ onClose, onCreated }: { onClose: () => void; onCreated?: (id
   const { addLead, sellerId, data } = useCrm();
   const seller = data.sellers.find((item) => item.id === sellerId);
   const [name, setName] = useState("");
-  const [phone, setPhone] = useState("");
+  const [phones, setPhones] = useState<LeadPhone[]>(() => [{ id: uid("ph"), number: "", owner: "" }]);
   const [companyName, setCompanyName] = useState("");
   const [city, setCity] = useState("");
   const [email, setEmail] = useState("");
   const [segment, setSegment] = useState<Segment>("installer");
   const [interest, setInterest] = useState("");
   const [group, setGroup] = useState<LeadGroup>("new");
+  const [linksOpen, setLinksOpen] = useState(false);
+  const [website, setWebsite] = useState("");
+  const [mapUrl, setMapUrl] = useState("");
   const [note, setNote] = useState("");
   const [error, setError] = useState("");
 
@@ -563,33 +572,42 @@ function LeadForm({ onClose, onCreated }: { onClose: () => void; onCreated?: (id
         className="grid max-h-[70vh] gap-3 overflow-y-auto pr-1"
         onSubmit={(event) => {
           event.preventDefault();
-          if (!name.trim() || !phone.trim()) {
+          const filledPhones = phones
+            .map((phone) => ({ ...phone, number: phone.number.trim(), owner: phone.owner.trim() }))
+            .filter((phone) => phone.number);
+          if (!name.trim() || filledPhones.length === 0) {
             setError("Укажите имя и телефон.");
             return;
           }
           const id = addLead({
             name: name.trim(),
-            phone: phone.trim(),
+            phones: filledPhones,
             companyName: companyName.trim(),
             city: city.trim(),
             email: email.trim(),
             segment,
             interest: interest.trim(),
             group,
+            website: website.trim(),
+            mapUrl: mapUrl.trim(),
             note: note.trim(),
           });
           onCreated?.(id);
           onClose();
         }}
       >
-        <div className="grid gap-3 sm:grid-cols-2">
-          <Field label="Имя">
-            <Input value={name} onChange={(event) => setName(event.target.value)} placeholder="Иван Петров" />
-          </Field>
-          <Field label="Телефон">
-            <Input value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="+7 900 000-00-00" inputMode="tel" />
-          </Field>
-        </div>
+        <Field label="Имя">
+          <Input value={name} onChange={(event) => setName(event.target.value)} placeholder="Иван Петров" />
+        </Field>
+        <PhoneList phones={phones} onChange={setPhones} />
+        <BuyerLinks
+          open={linksOpen}
+          onOpen={() => setLinksOpen(true)}
+          website={website}
+          mapUrl={mapUrl}
+          onWebsite={setWebsite}
+          onMap={setMapUrl}
+        />
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label="Компания или объект">
             <Input value={companyName} onChange={(event) => setCompanyName(event.target.value)} placeholder="ООО «Пример»" />

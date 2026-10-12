@@ -130,6 +130,7 @@ export type Task = {
   companyId: string | null;
   dealId: string | null;
   contactId: string | null;
+  leadId: string | null;
 };
 
 export type LeadGroup = "new" | "no-answer" | "reschedule" | "feedback" | "warm";
@@ -143,17 +144,25 @@ export type Seller = {
   demo: boolean;
 };
 
+export type LeadPhone = {
+  id: string;
+  number: string;
+  owner: string;
+};
+
 export type Lead = {
   id: string;
   sellerId: string;
   name: string;
-  phone: string;
+  phones: LeadPhone[];
   companyName: string;
   city: string;
   email: string;
   segment: Segment;
   interest: string;
   group: LeadGroup;
+  website: string;
+  mapUrl: string;
   createdAt: string;
   demo: boolean;
 };
