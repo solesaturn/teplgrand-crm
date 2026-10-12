@@ -17,9 +17,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { ChoiceSelect } from "@/components/crm-ui";
 import { useCrm } from "@/lib/crm-context";
 import { todayIso } from "@/lib/format";
-import { CALL_STATUS, SEGMENTS, STAGES, TASK_KIND } from "@/lib/labels";
+import { LEAD_GROUPS, SEGMENTS, STAGES, TASK_KIND } from "@/lib/labels";
 import { DISCOUNTS } from "@/lib/policy";
-import type { CallStatus, DealStage, DiscountId, Segment, TaskKind } from "@/lib/types";
+import type { DealStage, DiscountId, LeadGroup, Segment, TaskKind } from "@/lib/types";
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -547,7 +547,7 @@ function LeadForm({ onClose, onCreated }: { onClose: () => void; onCreated?: (id
   const [email, setEmail] = useState("");
   const [segment, setSegment] = useState<Segment>("installer");
   const [interest, setInterest] = useState("");
-  const [callStatus, setCallStatus] = useState<CallStatus>("not-called");
+  const [group, setGroup] = useState<LeadGroup>("new");
   const [note, setNote] = useState("");
   const [error, setError] = useState("");
 
@@ -575,7 +575,7 @@ function LeadForm({ onClose, onCreated }: { onClose: () => void; onCreated?: (id
             email: email.trim(),
             segment,
             interest: interest.trim(),
-            callStatus,
+            group,
             note: note.trim(),
           });
           onCreated?.(id);
@@ -612,12 +612,12 @@ function LeadForm({ onClose, onCreated }: { onClose: () => void; onCreated?: (id
         <Field label="Что нужно">
           <Textarea value={interest} onChange={(event) => setInterest(event.target.value)} placeholder="Котёл, краны, объём и срок" />
         </Field>
-        <Field label="Статус звонка">
+        <Field label="Группа">
           <ChoiceSelect
-            label="Статус звонка"
-            value={callStatus}
-            onChange={(value) => setCallStatus(value as CallStatus)}
-            options={CALL_STATUS.map((item) => ({ value: item.id, label: item.title }))}
+            label="Группа"
+            value={group}
+            onChange={(value) => setGroup(value as LeadGroup)}
+            options={LEAD_GROUPS.map((item) => ({ value: item.id, label: item.title }))}
           />
         </Field>
         <Field label="Заметка для себя">

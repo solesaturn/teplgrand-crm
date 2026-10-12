@@ -1,4 +1,4 @@
-import type { CallStatus, DealStage, OfferStatus, Segment, TaskKind } from "@/lib/types";
+import type { DealStage, LeadGroup, OfferStatus, Segment, TaskKind } from "@/lib/types";
 
 export const SEGMENTS: Record<Segment, string> = {
   partner: "Партнёр",
@@ -39,13 +39,27 @@ export function stageTitle(stage: DealStage) {
 
 export const OPEN_STAGES: DealStage[] = ["new", "qualify", "offer", "negotiate", "invoice"];
 
-export const CALL_STATUS: { id: CallStatus; title: string; hint: string }[] = [
-  { id: "not-called", title: "Не звонили", hint: "Ещё не набирали" },
+export const LEAD_GROUPS: { id: LeadGroup; title: string; hint: string }[] = [
+  { id: "new", title: "Новые", hint: "Ещё не звонили или задачи нет" },
   { id: "no-answer", title: "Недозвон", hint: "Не взяли трубку" },
-  { id: "callback", title: "Перезвонить", hint: "Договорились набрать ещё раз" },
-  { id: "called", title: "Уже звонили", hint: "Разговор состоялся" },
+  { id: "reschedule", title: "Перенос сроков", hint: "Созвонились и перенесли дату" },
+  { id: "feedback", title: "Обратная связь", hint: "Ждём ответ покупателя" },
+  { id: "warm", title: "Теплые", hint: "Интерес есть, можно вести дальше" },
 ];
 
-export function callStatusTitle(status: CallStatus) {
-  return CALL_STATUS.find((item) => item.id === status)?.title ?? status;
+export function leadGroupTitle(group: LeadGroup) {
+  return LEAD_GROUPS.find((item) => item.id === group)?.title ?? group;
+}
+
+const LEGACY_GROUP: Record<string, LeadGroup> = {
+  "not-called": "new",
+  "no-answer": "no-answer",
+  callback: "reschedule",
+  called: "warm",
+};
+
+export function leadGroupFromUnknown(group: unknown, legacyStatus?: unknown): LeadGroup {
+  if (typeof group === "string" && LEAD_GROUPS.some((item) => item.id === group)) return group as LeadGroup;
+  if (typeof legacyStatus === "string" && legacyStatus in LEGACY_GROUP) return LEGACY_GROUP[legacyStatus];
+  return "new";
 }

@@ -6,8 +6,8 @@ import { todayIso, uid } from "@/lib/format";
 import { quoteProduct } from "@/lib/pricing";
 import { productById } from "@/lib/products";
 import { createSeed } from "@/lib/seed";
+import { leadGroupFromUnknown } from "@/lib/labels";
 import type {
-  CallStatus,
   Company,
   Contact,
   CrmData,
@@ -15,9 +15,11 @@ import type {
   DealStage,
   DiscountId,
   Lead,
+  LeadGroup,
   Offer,
   OfferLine,
   PriceMode,
+  Segment,
   SellerNote,
   Task,
 } from "@/lib/types";
@@ -55,6 +57,29 @@ function asArray<T>(value: unknown, fallback: T[]): T[] {
   return Array.isArray(value) ? (value as T[]) : fallback;
 }
 
+const SEGMENTS: Segment[] = ["partner", "installer", "trader", "private", "management"];
+
+function normalizeLead(raw: unknown): Lead | null {
+  if (!raw || typeof raw !== "object") return null;
+  const lead = raw as Partial<Lead> & { callStatus?: unknown };
+  if (typeof lead.id !== "string" || typeof lead.name !== "string" || typeof lead.sellerId !== "string") return null;
+  const segment = SEGMENTS.includes(lead.segment as Segment) ? (lead.segment as Segment) : "installer";
+  return {
+    id: lead.id,
+    sellerId: lead.sellerId,
+    name: lead.name,
+    phone: typeof lead.phone === "string" ? lead.phone : "",
+    companyName: typeof lead.companyName === "string" ? lead.companyName : "",
+    city: typeof lead.city === "string" ? lead.city : "",
+    email: typeof lead.email === "string" ? lead.email : "",
+    segment,
+    interest: typeof lead.interest === "string" ? lead.interest : "",
+    group: leadGroupFromUnknown(lead.group, lead.callStatus),
+    createdAt: typeof lead.createdAt === "string" ? lead.createdAt : "",
+    demo: Boolean(lead.demo),
+  };
+}
+
 function backfill(partial: Partial<CrmData>): CrmData {
   const seed = createSeed();
   return {
@@ -64,7 +89,7 @@ function backfill(partial: Partial<CrmData>): CrmData {
     offers: asArray(partial.offers, seed.offers),
     tasks: asArray(partial.tasks, seed.tasks),
     sellers: asArray(partial.sellers, []).length ? asArray(partial.sellers, seed.sellers) : seed.sellers,
-    leads: asArray(partial.leads, seed.leads),
+    leads: Array.isArray(partial.leads) ? partial.leads.map(normalizeLead).filter((lead): lead is Lead => lead !== null) : seed.leads,
     sellerNotes: asArray(partial.sellerNotes, seed.sellerNotes),
   };
 }
@@ -169,7 +194,7 @@ type CrmApi = {
   reset: () => void;
   switchSeller: (id: string) => void;
   addLead: (input: Omit<Lead, "id" | "sellerId" | "demo" | "createdAt"> & { note?: string }) => string;
-  setLeadCallStatus: (id: string, callStatus: CallStatus) => void;
+  setLeadGroup: (id: string, group: LeadGroup) => void;
   addSellerNote: (leadId: string, text: string) => void;
   addCompany: (input: Omit<Company, "id" | "demo">) => string;
   addContact: (input: Omit<Contact, "id" | "demo">) => string;
@@ -238,7 +263,7 @@ export function CrmProvider({ children }: { children: React.ReactNode }) {
             email: input.email,
             segment: input.segment,
             interest: input.interest,
-            callStatus: input.callStatus,
+            group: input.group,
             createdAt: new Date().toISOString(),
             demo: false,
           });
@@ -255,12 +280,12 @@ export function CrmProvider({ children }: { children: React.ReactNode }) {
         toast.success("Лид добавлен в ваш список");
         return id;
       },
-      setLeadCallStatus: (id, callStatus) => {
+      setLeadGroup: (id, group) => {
         const sellerId = readClient().sellerId;
         mutate((draft) => {
           const lead = draft.leads.find((item) => item.id === id && item.sellerId === sellerId);
-          if (!lead || lead.callStatus === callStatus) return;
-          lead.callStatus = callStatus;
+          if (!lead || lead.group === group) return;
+          lead.group = group;
         });
       },
       addSellerNote: (leadId, text) => {

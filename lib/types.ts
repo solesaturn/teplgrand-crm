@@ -132,7 +132,7 @@ export type Task = {
   contactId: string | null;
 };
 
-export type CallStatus = "not-called" | "no-answer" | "callback" | "called";
+export type LeadGroup = "new" | "no-answer" | "reschedule" | "feedback" | "warm";
 
 export type Seller = {
   id: string;
@@ -153,7 +153,7 @@ export type Lead = {
   email: string;
   segment: Segment;
   interest: string;
-  callStatus: CallStatus;
+  group: LeadGroup;
   createdAt: string;
   demo: boolean;
 };

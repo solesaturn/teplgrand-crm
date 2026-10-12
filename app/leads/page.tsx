@@ -5,19 +5,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { LeadDialog } from "@/components/record-dialogs";
-import { CrmGate, DemoBadge, EmptyState, PageHeading } from "@/components/crm-ui";
+import { CrmGate, DemoBadge, PageHeading } from "@/components/crm-ui";
 import { useCrm } from "@/lib/crm-context";
 import { formatStamp, norm } from "@/lib/format";
-import { CALL_STATUS, SEGMENTS, callStatusTitle } from "@/lib/labels";
-import type { CallStatus, Lead } from "@/lib/types";
+import { LEAD_GROUPS, SEGMENTS } from "@/lib/labels";
+import type { Lead, LeadGroup } from "@/lib/types";
 import { cn } from "cn";
-
-const STATUS_CLASS: Record<CallStatus, string> = {
-  "not-called": "bg-muted text-foreground",
-  "no-answer": "bg-[oklch(0.93_0.05_75)] text-[oklch(0.38_0.06_55)]",
-  callback: "bg-primary text-primary-foreground",
-  called: "bg-[oklch(0.93_0.04_150)] text-[oklch(0.32_0.05_150)]",
-};
 
 export default function LeadsPage() {
   return (
@@ -27,134 +20,136 @@ export default function LeadsPage() {
   );
 }
 
+function matches(lead: Lead, needle: string) {
+  if (!needle) return true;
+  const haystack = norm([lead.name, lead.phone, lead.companyName].join(" "));
+  if (haystack.includes(needle)) return true;
+  const digits = needle.replace(/\D/g, "");
+  return digits.length >= 3 && lead.phone.replace(/\D/g, "").includes(digits);
+}
+
 function Leads() {
-  const { data, sellerId } = useCrm();
+  const { data, sellerId, setLeadGroup } = useCrm();
   const seller = data.sellers.find((item) => item.id === sellerId) ?? data.sellers[0];
   const [query, setQuery] = useState("");
-  const [status, setStatus] = useState<CallStatus | "all">("all");
-  const [picked, setPicked] = useState<string | null>("lead-sergey");
+  const [picked, setPicked] = useState<string | null>(null);
+  const [dragging, setDragging] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const needle = norm(query);
 
   const mine = useMemo(() => data.leads.filter((lead) => lead.sellerId === seller?.id), [data.leads, seller?.id]);
-  const shown = useMemo(() => {
-    return mine
-      .filter((lead) => (status === "all" ? true : lead.callStatus === status))
-      .filter((lead) => {
-        if (!needle) return true;
-        return norm([lead.name, lead.phone, lead.city, lead.companyName, lead.interest].join(" ")).includes(needle);
-      })
-      .slice()
-      .sort((a, b) => CALL_STATUS.findIndex((item) => item.id === a.callStatus) - CALL_STATUS.findIndex((item) => item.id === b.callStatus));
-  }, [mine, needle, status]);
-
-  const selected = shown.find((lead) => lead.id === picked) ?? shown[0] ?? null;
+  const shown = useMemo(() => mine.filter((lead) => matches(lead, needle)), [mine, needle]);
+  const selected = shown.find((lead) => lead.id === picked) ?? null;
 
   return (
     <div className="space-y-5">
       <PageHeading
         eyebrow="Обзвон"
         title={seller ? `Лиды · ${seller.name}` : "Лиды"}
-        text="Список для звонка. Заметка после разговора остаётся у вас и не попадает в карточку компании."
+        text="Все группы на одном экране. Поиск смотрит имя, телефон и компанию сразу во всех. Заметка остаётся только у вас."
         action={<Button onClick={() => setOpen(true)}>Новый лид</Button>}
       />
 
-      <div className="flex flex-col gap-2">
+      <div className="flex flex-col gap-2 sm:flex-row">
         <Input
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="Имя, телефон, город или что нужно"
-          aria-label="Поиск лидов"
+          placeholder="Имя, телефон или компания"
+          aria-label="Поиск по всем группам"
         />
-        <div className="flex flex-wrap gap-2" role="group" aria-label="Статус звонка">
-          <FilterChip active={status === "all"} onClick={() => setStatus("all")} label={`Все · ${mine.length}`} />
-          {CALL_STATUS.map((item) => {
-            const count = mine.filter((lead) => lead.callStatus === item.id).length;
-            return (
-              <FilterChip
-                key={item.id}
-                active={status === item.id}
-                onClick={() => setStatus(item.id)}
-                label={`${item.title} · ${count}`}
-              />
-            );
-          })}
-        </div>
+        {query ? (
+          <Button type="button" variant="outline" onClick={() => setQuery("")}>
+            Сбросить поиск
+          </Button>
+        ) : null}
       </div>
 
-      {mine.length === 0 ? (
-        <EmptyState
-          title="В вашем списке пока пусто"
-          text="Добавьте имя и телефон. Лид останется у этой учётки, чужие списки его не увидят."
-          action={<Button onClick={() => setOpen(true)}>Новый лид</Button>}
-        />
-      ) : shown.length === 0 ? (
-        <EmptyState
-          title="Таких лидов нет"
-          text="Смените статус или поиск. Остальные обращения на месте."
-          action={
-            <Button
-              variant="outline"
-              onClick={() => {
-                setQuery("");
-                setStatus("all");
+      <div className="grid items-start gap-3 md:grid-cols-2 xl:grid-cols-5">
+        {LEAD_GROUPS.map((group) => {
+          const leads = shown.filter((lead) => lead.group === group.id);
+          return (
+            <section
+              key={group.id}
+              aria-label={group.title}
+              className="rounded-2xl bg-muted/60 p-2"
+              onDragOver={(event) => event.preventDefault()}
+              onDrop={() => {
+                if (dragging) setLeadGroup(dragging, group.id);
+                setDragging(null);
               }}
             >
-              Сбросить фильтр
-            </Button>
-          }
-        />
-      ) : (
-        <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_22rem]">
-          <ul className="space-y-2">
-            {shown.map((lead) => {
-              const on = lead.id === selected?.id;
-              return (
-                <li key={lead.id}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPicked(lead.id);
-                      if (window.matchMedia("(max-width: 1023px)").matches) {
-                        document.getElementById("lead-desk")?.scrollIntoView({ behavior: "smooth", block: "start" });
-                      }
-                    }}
-                    aria-current={on ? "true" : undefined}
-                    className={cn(
-                      "w-full rounded-2xl bg-card p-4 text-left ring-1 ring-foreground/10 hover:bg-accent/30",
-                      on && "ring-2 ring-primary",
-                    )}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="font-semibold">{lead.name}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {lead.phone}
-                          {lead.city ? ` · ${lead.city}` : ""}
-                        </p>
-                      </div>
-                      <StatusBadge status={lead.callStatus} />
-                    </div>
-                    <p className="mt-2 line-clamp-2 text-sm">{lead.interest || lead.companyName || SEGMENTS[lead.segment]}</p>
-                    {lead.demo ? (
-                      <div className="mt-2">
-                        <DemoBadge />
-                      </div>
-                    ) : null}
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-          {selected && seller ? <LeadDesk lead={selected} sellerId={seller.id} sellerName={seller.name} /> : null}
-        </div>
+              <header className="px-2 py-2">
+                <h2 className="text-sm font-semibold">{group.title}</h2>
+                <p className="text-xs text-muted-foreground">
+                  {group.hint} · {leads.length}
+                </p>
+              </header>
+              {leads.length === 0 ? (
+                <p className="px-2 py-6 text-center text-xs text-muted-foreground">
+                  {needle ? "Нет совпадений" : "Пока пусто"}
+                </p>
+              ) : (
+                <ul className="space-y-2">
+                  {leads.map((lead) => (
+                    <li key={lead.id}>
+                      <article
+                        draggable
+                        onDragStart={() => setDragging(lead.id)}
+                        className={cn(
+                          "cursor-grab rounded-xl bg-card p-3 ring-1 ring-foreground/10 active:cursor-grabbing",
+                          selected?.id === lead.id && "ring-2 ring-primary",
+                        )}
+                      >
+                        <button
+                          type="button"
+                          className="w-full text-left"
+                          onClick={() => {
+                            setPicked(lead.id);
+                            if (window.matchMedia("(max-width: 1279px)").matches) {
+                              document.getElementById("lead-desk")?.scrollIntoView({ behavior: "smooth", block: "start" });
+                            }
+                          }}
+                        >
+                          <p className="text-sm font-semibold">{lead.name}</p>
+                          <p className="mt-1 text-xs text-muted-foreground">{lead.phone}</p>
+                          <p className="mt-1 text-xs">{lead.companyName || "Без компании"}</p>
+                        </button>
+                        <div className="mt-2 flex items-center justify-between gap-2">
+                          {lead.demo ? <DemoBadge /> : <span />}
+                          <label className="min-w-0 flex-1">
+                            <span className="sr-only">Группа для {lead.name}</span>
+                            <select
+                              className="h-7 w-full rounded-md border bg-background px-1 text-xs"
+                              value={lead.group}
+                              aria-label={`Перенести ${lead.name}`}
+                              onChange={(event) => setLeadGroup(lead.id, event.target.value as LeadGroup)}
+                            >
+                              {LEAD_GROUPS.map((item) => (
+                                <option key={item.id} value={item.id}>
+                                  {item.title}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                        </div>
+                      </article>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+          );
+        })}
+      </div>
+
+      {selected && seller ? <LeadDesk lead={selected} sellerId={seller.id} sellerName={seller.name} /> : (
+        <p className="text-sm text-muted-foreground">Выберите лид, чтобы дописать заметку для себя или перенести его в другую группу.</p>
       )}
 
       <LeadDialog
         open={open}
         onOpenChange={setOpen}
         onCreated={(id) => {
-          setStatus("all");
           setQuery("");
           setPicked(id);
         }}
@@ -163,79 +158,53 @@ function Leads() {
   );
 }
 
-function FilterChip({ active, label, onClick }: { active: boolean; label: string; onClick: () => void }) {
-  return (
-    <Button type="button" size="sm" variant={active ? "default" : "outline"} onClick={onClick}>
-      {label}
-    </Button>
-  );
-}
-
-function StatusBadge({ status }: { status: CallStatus }) {
-  return <span className={cn("inline-flex shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium", STATUS_CLASS[status])}>{callStatusTitle(status)}</span>;
-}
-
 function LeadDesk({ lead, sellerId, sellerName }: { lead: Lead; sellerId: string; sellerName: string }) {
-  const { data, setLeadCallStatus } = useCrm();
+  const { data, setLeadGroup } = useCrm();
   const notes = data.sellerNotes.filter((note) => note.leadId === lead.id && note.sellerId === sellerId);
 
   return (
-    <aside id="lead-desk" className="scroll-mt-4 space-y-4 rounded-2xl bg-card p-4 ring-1 ring-foreground/10 lg:sticky lg:top-6">
-      <div>
-        <div className="flex items-start justify-between gap-3">
-          <h2 className="text-lg font-semibold">{lead.name}</h2>
-          {lead.demo ? <DemoBadge /> : null}
+    <aside id="lead-desk" className="scroll-mt-4 rounded-2xl bg-card p-4 ring-1 ring-foreground/10">
+      <div className="grid gap-4 lg:grid-cols-[16rem_1fr]">
+        <div>
+          <div className="flex items-start justify-between gap-3">
+            <h2 className="text-lg font-semibold">{lead.name}</h2>
+            {lead.demo ? <DemoBadge /> : null}
+          </div>
+          <a className="mt-1 inline-block text-sm font-medium underline-offset-4 hover:underline" href={`tel:${lead.phone.replace(/[^\d+]/g, "")}`}>
+            {lead.phone}
+          </a>
+          <p className="mt-2 text-sm text-muted-foreground">
+            {[lead.companyName || "Без компании", lead.city, SEGMENTS[lead.segment]].filter(Boolean).join(" · ")}
+          </p>
+          {lead.interest ? <p className="mt-3 text-sm">{lead.interest}</p> : null}
+          <div className="mt-3 flex flex-wrap gap-2" role="group" aria-label="Перенести в группу">
+            {LEAD_GROUPS.map((item) => {
+              const on = lead.group === item.id;
+              return (
+                <Button key={item.id} type="button" size="sm" variant={on ? "default" : "outline"} aria-pressed={on} onClick={() => setLeadGroup(lead.id, item.id)}>
+                  {item.title}
+                </Button>
+              );
+            })}
+          </div>
         </div>
-        <a className="mt-1 inline-block text-sm font-medium underline-offset-4 hover:underline" href={`tel:${lead.phone.replace(/[^\d+]/g, "")}`}>
-          {lead.phone}
-        </a>
-        <p className="mt-2 text-sm text-muted-foreground">
-          {[lead.companyName, lead.city, SEGMENTS[lead.segment]].filter(Boolean).join(" · ")}
-        </p>
-        {lead.email ? <p className="text-sm text-muted-foreground">{lead.email}</p> : null}
-        {lead.interest ? <p className="mt-3 text-sm">{lead.interest}</p> : null}
-      </div>
-
-      <div>
-        <p className="text-sm font-medium">Статус звонка</p>
-        <div className="mt-2 grid grid-cols-2 gap-2" role="group" aria-label="Статус звонка">
-          {CALL_STATUS.map((item) => {
-            const on = lead.callStatus === item.id;
-            return (
-              <button
-                key={item.id}
-                type="button"
-                aria-pressed={on}
-                onClick={() => setLeadCallStatus(lead.id, item.id)}
-                className={cn(
-                  "rounded-xl px-3 py-2 text-left text-sm ring-1 ring-foreground/10",
-                  on ? STATUS_CLASS[item.id] : "bg-background hover:bg-accent/40",
-                )}
-              >
-                <span className="block font-medium">{item.title}</span>
-                <span className={cn("mt-0.5 block text-[11px]", on ? "opacity-80" : "text-muted-foreground")}>{item.hint}</span>
-              </button>
-            );
-          })}
+        <div>
+          <p className="text-sm font-medium">Заметка для себя</p>
+          <p className="mt-1 text-xs text-muted-foreground">Видит только {sellerName}. В общую карточку компании это не пишется.</p>
+          <NoteForm key={lead.id} leadId={lead.id} />
+          {notes.length === 0 ? (
+            <p className="mt-3 text-sm text-muted-foreground">После звонка здесь появится ваша заметка.</p>
+          ) : (
+            <ul className="mt-3 space-y-2">
+              {notes.map((note) => (
+                <li key={note.id} className="rounded-xl bg-background px-3 py-2 text-sm ring-1 ring-foreground/10">
+                  <p>{note.text}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">{formatStamp(note.createdAt)}</p>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
-      </div>
-
-      <div>
-        <p className="text-sm font-medium">Заметка для себя</p>
-        <p className="mt-1 text-xs text-muted-foreground">Видит только {sellerName}. В общую карточку компании это не пишется.</p>
-        <NoteForm key={lead.id} leadId={lead.id} />
-        {notes.length === 0 ? (
-          <p className="mt-3 text-sm text-muted-foreground">После звонка здесь появится ваша заметка.</p>
-        ) : (
-          <ul className="mt-3 space-y-2">
-            {notes.map((note) => (
-              <li key={note.id} className="rounded-xl bg-background px-3 py-2 text-sm ring-1 ring-foreground/10">
-                <p>{note.text}</p>
-                <p className="mt-1 text-xs text-muted-foreground">{formatStamp(note.createdAt)}</p>
-              </li>
-            ))}
-          </ul>
-        )}
       </div>
     </aside>
   );
@@ -260,12 +229,7 @@ function NoteForm({ leadId }: { leadId: string }) {
         setError("");
       }}
     >
-      <Textarea
-        value={text}
-        onChange={(event) => setText(event.target.value)}
-        placeholder="Перезвонить после 16:00, просил Д2 на краны"
-        aria-label="Заметка для себя"
-      />
+      <Textarea value={text} onChange={(event) => setText(event.target.value)} placeholder="Перенесли на четверг, ждёт расчёт по Д2" aria-label="Заметка для себя" />
       {error ? <p className="text-sm text-destructive">{error}</p> : null}
       <Button type="submit" variant="outline">
         Сохранить заметку
