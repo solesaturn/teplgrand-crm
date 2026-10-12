@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useMemo, useSyncExternalStore } from "react";
+import { createContext, useContext, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { toast } from "sonner";
 import { todayIso, uid } from "@/lib/format";
 import { quoteProduct } from "@/lib/pricing";
@@ -153,7 +153,14 @@ type CrmApi = {
 const CrmContext = createContext<CrmApi | null>(null);
 
 export function CrmProvider({ children }: { children: React.ReactNode }) {
-  const snapshot = useSyncExternalStore(subscribe, readClient, getServerSnapshot);
+  const stored = useSyncExternalStore(subscribe, readClient, getServerSnapshot);
+  const [mounted, setMounted] = useState<Snapshot | null>(null);
+  useEffect(() => {
+    // The server snapshot stays on "loading" until the browser can read localStorage.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- hydrate the demo CRM after mount
+    setMounted(readClient());
+  }, []);
+  const snapshot = mounted ?? stored;
 
   const api = useMemo<CrmApi>(() => {
     return {

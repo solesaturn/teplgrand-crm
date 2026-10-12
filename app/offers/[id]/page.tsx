@@ -24,7 +24,7 @@ function OfferRoute() {
       <EmptyState
         title="Предложение не найдено"
         text="Номер мог остаться от старых демо-данных. Откройте список и соберите новое."
-        action={<Button render={<Link href="/offers" />}>К списку КП</Button>}
+        action={<Button nativeButton={false} render={<Link href="/offers" />}>К списку КП</Button>}
       />
     );
   }

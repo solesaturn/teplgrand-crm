@@ -31,7 +31,7 @@ function Client() {
       <EmptyState
         title="Компания не найдена"
         text="Карточка могла быть из другого браузера. Вернитесь к списку."
-        action={<Button render={<Link href="/clients" />}>К компаниям</Button>}
+        action={<Button nativeButton={false} render={<Link href="/clients" />}>К компаниям</Button>}
       />
     );
   }

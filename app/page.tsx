@@ -33,7 +33,7 @@ function Dashboard() {
         title="Что сделать сегодня"
         text="Сделки, которым нужен следующий шаг, и коммерческие предложения по прайсу Теплогранд."
         action={
-          <Button render={<Link href="/catalog" />}>
+          <Button nativeButton={false} render={<Link href="/catalog" />}>
             Открыть каталог
           </Button>
         }

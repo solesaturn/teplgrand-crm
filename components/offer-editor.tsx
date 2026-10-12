@@ -76,7 +76,7 @@ export function OfferEditor({ offer }: { offer: Offer }) {
         <Button type="button" onClick={() => setPicker(true)}>Добавить из каталога</Button>
         <Button type="button" variant="outline" onClick={() => window.print()}>Печать</Button>
         {deal ? (
-          <Button variant="outline" render={<Link href={`/deals/${deal.id}`} />}>
+          <Button variant="outline" nativeButton={false} render={<Link href={`/deals/${deal.id}`} />}>
             Сделка
           </Button>
         ) : null}

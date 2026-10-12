@@ -29,7 +29,7 @@ function Deal() {
   const [taskOpen, setTaskOpen] = useState(false);
 
   if (!deal) {
-    return <EmptyState title="Сделка не найдена" text="Возможно, демо-данные были сброшены." action={<Button render={<Link href="/pipeline" />}>К воронке</Button>} />;
+    return <EmptyState title="Сделка не найдена" text="Возможно, демо-данные были сброшены." action={<Button nativeButton={false} render={<Link href="/pipeline" />}>К воронке</Button>} />;
   }
 
   const company = data.companies.find((item) => item.id === deal.companyId);
