@@ -123,6 +123,15 @@ function normalizeTask(raw: unknown): Task | null {
 
 function backfill(partial: Partial<CrmData>): CrmData {
   const seed = createSeed();
+  const storedLeads = Array.isArray(partial.leads)
+    ? partial.leads.map(normalizeLead).filter((lead): lead is Lead => lead !== null)
+    : seed.leads;
+  const seedById = new Map(seed.leads.map((lead) => [lead.id, lead]));
+  const leads = storedLeads.map((lead) => {
+    if (lead.callbackAt || lead.group !== "reschedule") return lead;
+    const sample = seedById.get(lead.id);
+    return sample?.callbackAt ? { ...lead, callbackAt: sample.callbackAt } : lead;
+  });
   return {
     companies: asArray(partial.companies, seed.companies),
     contacts: asArray(partial.contacts, seed.contacts),
@@ -130,7 +139,7 @@ function backfill(partial: Partial<CrmData>): CrmData {
     offers: asArray(partial.offers, seed.offers),
     tasks: Array.isArray(partial.tasks) ? partial.tasks.map(normalizeTask).filter((task): task is Task => task !== null) : seed.tasks,
     sellers: asArray(partial.sellers, []).length ? asArray(partial.sellers, seed.sellers) : seed.sellers,
-    leads: Array.isArray(partial.leads) ? partial.leads.map(normalizeLead).filter((lead): lead is Lead => lead !== null) : seed.leads,
+    leads,
     sellerNotes: asArray(partial.sellerNotes, seed.sellerNotes),
   };
 }
