@@ -45,6 +45,11 @@ function primaryPhone(lead: Lead) {
   return lead.phones.find((phone) => phone.number.trim())?.number ?? "Без телефона";
 }
 
+function currentTime() {
+  const now = new Date();
+  return `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+}
+
 function matches(lead: Lead, needle: string) {
   if (!needle) return true;
   const haystack = norm([lead.name, leadPhonesText(lead), lead.companyName].join(" "));
@@ -385,7 +390,7 @@ function LeadOverlay({
   onScheduleConfirm: () => void;
   onScheduleCancel: () => void;
 }) {
-  const { data, updateLead, addSellerNote, addTask } = useCrm();
+  const { data, updateLead, addSellerNote, addLeadCall, addTask } = useCrm();
   const [draft, setDraft] = useState<Draft>(() => draftFrom(lead));
   const [linksOpen, setLinksOpen] = useState(Boolean(lead.website || lead.mapUrl));
   const [taskOpen, setTaskOpen] = useState(false);
@@ -395,7 +400,16 @@ function LeadOverlay({
   const [taskError, setTaskError] = useState("");
   const [note, setNote] = useState("");
   const [noteError, setNoteError] = useState("");
+  const [callDate, setCallDate] = useState(todayIso);
+  const [callTime, setCallTime] = useState(currentTime);
+  const [callGroup, setCallGroup] = useState<LeadGroup>(lead.group);
+  const [callNote, setCallNote] = useState("");
+  const [callError, setCallError] = useState("");
   const notes = data.sellerNotes.filter((item) => item.leadId === lead.id && item.sellerId === sellerId);
+  const calls = data.leadCalls
+    .filter((item) => item.leadId === lead.id && item.sellerId === sellerId)
+    .slice()
+    .sort((a, b) => b.calledAt.localeCompare(a.calledAt) || b.id.localeCompare(a.id));
   const tasks = data.tasks.filter((item) => item.leadId === lead.id);
 
   useEffect(() => {
@@ -543,6 +557,59 @@ function LeadOverlay({
                     <p className="text-xs text-muted-foreground">
                       {TASK_KIND[task.kind]} · {task.due}
                     </p>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+          <div aria-label="История звонков">
+            <p className="text-sm font-medium">История звонков</p>
+            <p className="mt-1 text-xs text-muted-foreground">Несколько записей подряд. Видит только {sellerName}. Группа лида от этого не меняется.</p>
+            <form
+              className="mt-2 space-y-2 rounded-xl bg-background p-3 ring-1 ring-foreground/10"
+              onSubmit={(event) => {
+                event.preventDefault();
+                if (!callDate || !callTime || !callNote.trim()) {
+                  setCallError("Укажите дату, время и что было на звонке.");
+                  return;
+                }
+                addLeadCall(lead.id, { calledAt: `${callDate}T${callTime}`, group: callGroup, note: callNote });
+                setCallNote("");
+                setCallError("");
+                setCallDate(todayIso());
+                setCallTime(currentTime());
+              }}
+            >
+              <div className="grid gap-2 sm:grid-cols-2">
+                <label className="block space-y-1 text-sm">
+                  Дата звонка
+                  <Input aria-label="Дата звонка" type="date" required value={callDate} onChange={(event) => setCallDate(event.target.value)} />
+                </label>
+                <label className="block space-y-1 text-sm">
+                  Время звонка
+                  <Input aria-label="Время звонка" type="time" required value={callTime} onChange={(event) => setCallTime(event.target.value)} />
+                </label>
+              </div>
+              <ChoiceSelect
+                label="Итог звонка"
+                value={callGroup}
+                onChange={(value) => setCallGroup(value as LeadGroup)}
+                options={LEAD_GROUPS.map((item) => ({ value: item.id, label: item.title }))}
+              />
+              <Textarea aria-label="Заметка к звонку" value={callNote} onChange={(event) => setCallNote(event.target.value)} placeholder="Не взяли трубку, набрать после обеда" />
+              {callError ? <p className="text-sm text-destructive">{callError}</p> : null}
+              <Button type="submit" size="sm">Записать звонок</Button>
+            </form>
+            {calls.length === 0 ? (
+              <p className="mt-2 text-sm text-muted-foreground">Звонков ещё не записывали.</p>
+            ) : (
+              <ul className="mt-3 space-y-2">
+                {calls.map((item) => (
+                  <li key={item.id} className="rounded-xl bg-background px-3 py-2 text-sm ring-1 ring-foreground/10">
+                    <p className="text-xs text-muted-foreground">
+                      {formatCallback(item.calledAt)} · {leadGroupTitle(item.group)}
+                    </p>
+                    <p className="mt-1">{item.note}</p>
                   </li>
                 ))}
               </ul>

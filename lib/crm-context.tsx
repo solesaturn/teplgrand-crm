@@ -15,6 +15,7 @@ import type {
   DealStage,
   DiscountId,
   Lead,
+  LeadCall,
   LeadGroup,
   LeadPhone,
   Offer,
@@ -39,6 +40,7 @@ const EMPTY: CrmData = {
   sellers: [],
   leads: [],
   sellerNotes: [],
+  leadCalls: [],
 };
 
 type Status = "loading" | "ready" | "error";
@@ -104,6 +106,21 @@ function normalizeLead(raw: unknown): Lead | null {
   };
 }
 
+function normalizeLeadCall(raw: unknown): LeadCall | null {
+  if (!raw || typeof raw !== "object") return null;
+  const call = raw as Partial<LeadCall>;
+  const calledAt = callbackStampOrNull(call.calledAt);
+  if (typeof call.id !== "string" || typeof call.sellerId !== "string" || typeof call.leadId !== "string" || !calledAt) return null;
+  return {
+    id: call.id,
+    sellerId: call.sellerId,
+    leadId: call.leadId,
+    calledAt,
+    group: leadGroupFromUnknown(call.group),
+    note: typeof call.note === "string" ? call.note : "",
+  };
+}
+
 function normalizeTask(raw: unknown): Task | null {
   if (!raw || typeof raw !== "object") return null;
   const task = raw as Partial<Task>;
@@ -141,6 +158,9 @@ function backfill(partial: Partial<CrmData>): CrmData {
     sellers: asArray(partial.sellers, []).length ? asArray(partial.sellers, seed.sellers) : seed.sellers,
     leads,
     sellerNotes: asArray(partial.sellerNotes, seed.sellerNotes),
+    leadCalls: Array.isArray(partial.leadCalls)
+      ? partial.leadCalls.map(normalizeLeadCall).filter((call): call is LeadCall => call !== null)
+      : seed.leadCalls,
   };
 }
 
@@ -250,6 +270,7 @@ type CrmApi = {
     patch: Partial<Pick<Lead, "name" | "phones" | "companyName" | "city" | "email" | "segment" | "interest" | "group" | "callbackAt" | "website" | "mapUrl">>,
   ) => void;
   addSellerNote: (leadId: string, text: string) => void;
+  addLeadCall: (leadId: string, input: { calledAt: string; group: LeadGroup; note: string }) => void;
   addCompany: (input: Omit<Company, "id" | "demo">) => string;
   addContact: (input: Omit<Contact, "id" | "demo">) => string;
   addDeal: (input: Omit<Deal, "id" | "updatedAt">) => string;
@@ -375,6 +396,26 @@ export function CrmProvider({ children }: { children: React.ReactNode }) {
           draft.sellerNotes.unshift(note);
         });
         toast.success("Заметка видна только вам");
+      },
+      addLeadCall: (leadId, input) => {
+        const sellerId = readClient().sellerId;
+        const calledAt = callbackStampOrNull(input.calledAt);
+        const note = input.note.trim();
+        if (!calledAt || !note) return;
+        const lead = readClient().data.leads.find((item) => item.id === leadId && item.sellerId === sellerId);
+        if (!lead) return;
+        const call: LeadCall = {
+          id: uid("call"),
+          sellerId,
+          leadId,
+          calledAt,
+          group: input.group,
+          note,
+        };
+        mutate((draft) => {
+          draft.leadCalls.unshift(call);
+        });
+        toast.success("Звонок виден только вам");
       },
       addCompany: (input) => {
         const id = uid("co");

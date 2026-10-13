@@ -596,5 +596,39 @@ export function createSeed(): CrmData {
         createdAt: "2026-10-11T13:40:00",
       },
     ],
+    leadCalls: [
+      {
+        id: "call-sergey-today",
+        sellerId: "s-marina",
+        leadId: "lead-sergey",
+        calledAt: callbackStamp(0, 10, 15),
+        group: "reschedule",
+        note: "Договорились перезвонить в 16:00. Ждёт два ТГУ-НОРД-С24 и обвязку на Каширское.",
+      },
+      {
+        id: "call-sergey-yesterday",
+        sellerId: "s-marina",
+        leadId: "lead-sergey",
+        calledAt: callbackStamp(-1, 11, 40),
+        group: "no-answer",
+        note: "Не дозвонились: длинные гудки, трубку не взял.",
+      },
+      {
+        id: "call-alina-today",
+        sellerId: "s-marina",
+        leadId: "lead-alina",
+        calledAt: callbackStamp(0, 8, 5),
+        group: "no-answer",
+        note: "Два гудка и сброс. Набрать ещё раз до планёрки.",
+      },
+      {
+        id: "call-gulnara",
+        sellerId: "s-artem",
+        leadId: "lead-gulnara",
+        calledAt: callbackStamp(-1, 18, 10),
+        group: "reschedule",
+        note: "Поговорили вечером. Планировку пришлёт, набирать после 18:00.",
+      },
+    ],
   };
 }

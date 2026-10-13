@@ -176,6 +176,15 @@ export type SellerNote = {
   createdAt: string;
 };
 
+export type LeadCall = {
+  id: string;
+  sellerId: string;
+  leadId: string;
+  calledAt: string;
+  group: LeadGroup;
+  note: string;
+};
+
 export type CrmData = {
   companies: Company[];
   contacts: Contact[];
@@ -185,4 +194,5 @@ export type CrmData = {
   sellers: Seller[];
   leads: Lead[];
   sellerNotes: SellerNote[];
+  leadCalls: LeadCall[];
 };
