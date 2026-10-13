@@ -409,7 +409,7 @@ function LeadOverlay({
   const calls = data.leadCalls
     .filter((item) => item.leadId === lead.id && item.sellerId === sellerId)
     .slice()
-    .sort((a, b) => b.calledAt.localeCompare(a.calledAt) || b.id.localeCompare(a.id));
+    .sort((a, b) => b.calledAt.localeCompare(a.calledAt));
   const tasks = data.tasks.filter((item) => item.leadId === lead.id);
 
   useEffect(() => {
