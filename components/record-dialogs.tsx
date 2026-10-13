@@ -16,7 +16,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { ChoiceSelect } from "@/components/crm-ui";
 import { useCrm } from "@/lib/crm-context";
-import { todayIso, uid } from "@/lib/format";
+import { defaultCallbackParts, todayIso, uid } from "@/lib/format";
 import { LEAD_GROUPS, SEGMENTS, STAGES, TASK_KIND } from "@/lib/labels";
 import { DISCOUNTS } from "@/lib/policy";
 import { BuyerLinks, PhoneList } from "@/components/lead-fields";
@@ -554,6 +554,8 @@ function LeadForm({ onClose, onCreated }: { onClose: () => void; onCreated?: (id
   const [segment, setSegment] = useState<Segment>("installer");
   const [interest, setInterest] = useState("");
   const [group, setGroup] = useState<LeadGroup>("new");
+  const [callbackDate, setCallbackDate] = useState(() => defaultCallbackParts(null).date);
+  const [callbackTime, setCallbackTime] = useState(() => defaultCallbackParts(null).time);
   const [linksOpen, setLinksOpen] = useState(false);
   const [website, setWebsite] = useState("");
   const [mapUrl, setMapUrl] = useState("");
@@ -579,6 +581,10 @@ function LeadForm({ onClose, onCreated }: { onClose: () => void; onCreated?: (id
             setError("Укажите имя и телефон.");
             return;
           }
+          if (group === "reschedule" && (!callbackDate || !callbackTime)) {
+            setError("Для переноса сроков укажите дату и время.");
+            return;
+          }
           const id = addLead({
             name: name.trim(),
             phones: filledPhones,
@@ -588,6 +594,7 @@ function LeadForm({ onClose, onCreated }: { onClose: () => void; onCreated?: (id
             segment,
             interest: interest.trim(),
             group,
+            callbackAt: group === "reschedule" ? `${callbackDate}T${callbackTime}` : null,
             website: website.trim(),
             mapUrl: mapUrl.trim(),
             note: note.trim(),
@@ -638,6 +645,16 @@ function LeadForm({ onClose, onCreated }: { onClose: () => void; onCreated?: (id
             options={LEAD_GROUPS.map((item) => ({ value: item.id, label: item.title }))}
           />
         </Field>
+        {group === "reschedule" ? (
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="Дата перезвона">
+              <Input aria-label="Дата перезвона" type="date" required value={callbackDate} onChange={(event) => setCallbackDate(event.target.value)} />
+            </Field>
+            <Field label="Время перезвона">
+              <Input aria-label="Время перезвона" type="time" required value={callbackTime} onChange={(event) => setCallbackTime(event.target.value)} />
+            </Field>
+          </div>
+        ) : null}
         <Field label="Заметка для себя">
           <Textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder="Необязательно. Другие продавцы её не увидят." />
         </Field>

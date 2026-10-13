@@ -6,6 +6,17 @@ function leadPhones(id: string, number: string, owner: string, extra?: LeadPhone
   return [{ id, number, owner }, ...(extra ?? [])];
 }
 
+function callbackStamp(dayOffset: number, hour: number, minute: number) {
+  const date = new Date();
+  date.setDate(date.getDate() + dayOffset);
+  date.setHours(hour, minute, 0, 0);
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const hh = String(date.getHours()).padStart(2, "0");
+  const mm = String(date.getMinutes()).padStart(2, "0");
+  return `${date.getFullYear()}-${month}-${day}T${hh}:${mm}`;
+}
+
 function product(id: string): Product {
   const found = productById(id);
   if (!found) throw new Error(id);
@@ -359,6 +370,7 @@ export function createSeed(): CrmData {
         segment: "installer",
         interest: "Два ТГУ-НОРД-С24 и обвязка на Каширское шоссе",
         group: "reschedule",
+        callbackAt: callbackStamp(0, 16, 0),
         createdAt: "2026-10-11T11:20:00",
         demo: true,
       },
@@ -375,6 +387,7 @@ export function createSeed(): CrmData {
         segment: "trader",
         interest: "Краны LD Pride, партия от 200 штук",
         group: "warm",
+        callbackAt: null,
         createdAt: "2026-10-10T09:40:00",
         demo: true,
       },
@@ -391,6 +404,7 @@ export function createSeed(): CrmData {
         segment: "installer",
         interest: "Насос Wilo Star и автоматика ZONT",
         group: "no-answer",
+        callbackAt: null,
         createdAt: "2026-10-12T08:15:00",
         demo: true,
       },
@@ -407,6 +421,7 @@ export function createSeed(): CrmData {
         segment: "trader",
         interest: "Краны и фитинги LD на витрину",
         group: "new",
+        callbackAt: null,
         createdAt: "2026-10-12T09:05:00",
         demo: true,
       },
@@ -423,6 +438,7 @@ export function createSeed(): CrmData {
         segment: "installer",
         interest: "Коллектор на 4 выхода и котёл Arderia",
         group: "no-answer",
+        callbackAt: null,
         createdAt: "2026-10-11T14:10:00",
         demo: true,
       },
@@ -439,6 +455,7 @@ export function createSeed(): CrmData {
         segment: "trader",
         interest: "Фитинги и краны LD на склад",
         group: "new",
+        callbackAt: null,
         createdAt: "2026-10-12T10:00:00",
         demo: true,
       },
@@ -455,6 +472,7 @@ export function createSeed(): CrmData {
         segment: "private",
         interest: "Настенный котёл Arderia 24 кВт",
         group: "reschedule",
+        callbackAt: callbackStamp(-1, 11, 30),
         createdAt: "2026-10-10T18:30:00",
         demo: true,
       },
@@ -471,6 +489,7 @@ export function createSeed(): CrmData {
         segment: "private",
         interest: "Котёл 24 кВт и дымоход на дом 160 м²",
         group: "new",
+        callbackAt: null,
         createdAt: "2026-10-12T07:50:00",
         demo: true,
       },
@@ -487,6 +506,7 @@ export function createSeed(): CrmData {
         segment: "private",
         interest: "Бойлер и насос Wilo",
         group: "reschedule",
+        callbackAt: callbackStamp(1, 10, 0),
         createdAt: "2026-10-11T19:10:00",
         demo: true,
       },
@@ -503,6 +523,7 @@ export function createSeed(): CrmData {
         segment: "private",
         interest: "Бойлер Royal Thermo 80 л",
         group: "feedback",
+        callbackAt: null,
         createdAt: "2026-10-09T12:25:00",
         demo: true,
       },
@@ -519,6 +540,7 @@ export function createSeed(): CrmData {
         segment: "trader",
         interest: "Ждёт расчёт на краны LD и напишет, берёт ли партию",
         group: "feedback",
+        callbackAt: null,
         createdAt: "2026-10-11T13:10:00",
         demo: true,
       },

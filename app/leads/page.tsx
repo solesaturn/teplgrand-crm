@@ -15,8 +15,17 @@ import { BuyerLinks, PhoneList } from "@/components/lead-fields";
 import { LeadDialog } from "@/components/record-dialogs";
 import { ChoiceSelect, CrmGate, DemoBadge, PageHeading } from "@/components/crm-ui";
 import { useCrm } from "@/lib/crm-context";
-import { formatStamp, norm, todayIso } from "@/lib/format";
-import { LEAD_GROUPS, SEGMENTS, TASK_KIND } from "@/lib/labels";
+import {
+  callbackDue,
+  callbackOverdue,
+  defaultCallbackParts,
+  splitCallback,
+  formatCallback,
+  formatStamp,
+  norm,
+  todayIso,
+} from "@/lib/format";
+import { LEAD_GROUPS, SEGMENTS, TASK_KIND, leadGroupTitle } from "@/lib/labels";
 import type { Lead, LeadGroup, LeadPhone, Segment, TaskKind } from "@/lib/types";
 import { cn } from "cn";
 
@@ -44,25 +53,59 @@ function matches(lead: Lead, needle: string) {
   return digits.length >= 3 && lead.phones.some((phone) => phone.number.replace(/\D/g, "").includes(digits));
 }
 
+function todayCallsOf(leads: Lead[], now = new Date()) {
+  const ranked = leads.flatMap((lead) => {
+    if (lead.group === "reschedule") {
+      if (!callbackDue(lead.callbackAt, now)) return [];
+      return [{ lead, bucket: callbackOverdue(lead.callbackAt, now) ? 0 : 1, time: lead.callbackAt ?? "" }];
+    }
+    if (lead.group === "no-answer") return [{ lead, bucket: 2, time: lead.name }];
+    if (lead.group === "new") return [{ lead, bucket: 3, time: lead.name }];
+    return [];
+  });
+  ranked.sort((a, b) => a.bucket - b.bucket || a.time.localeCompare(b.time, "ru") || a.lead.name.localeCompare(b.lead.name, "ru"));
+  return ranked.map((item) => item.lead);
+}
+
 function Leads() {
-  const { data, sellerId, setLeadGroup } = useCrm();
+  const { data, sellerId, setLeadGroup, updateLead } = useCrm();
   const seller = data.sellers.find((item) => item.id === sellerId) ?? data.sellers[0];
   const [query, setQuery] = useState("");
   const [picked, setPicked] = useState<string | null>(null);
   const [dragging, setDragging] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
+  const [pending, setPending] = useState<{ leadId: string; date: string; time: string } | null>(null);
   const needle = norm(query);
 
   const mine = useMemo(() => data.leads.filter((lead) => lead.sellerId === seller?.id), [data.leads, seller?.id]);
   const shown = useMemo(() => mine.filter((lead) => matches(lead, needle)), [mine, needle]);
+  const todayCalls = useMemo(() => todayCallsOf(shown), [shown]);
   const pickedLead = mine.find((lead) => lead.id === picked) ?? null;
+  const pendingLead = mine.find((lead) => lead.id === pending?.leadId) ?? null;
+
+  function requestMove(leadId: string, group: LeadGroup) {
+    const lead = mine.find((item) => item.id === leadId);
+    if (!lead || lead.group === group) return;
+    if (group === "reschedule") {
+      const parts = defaultCallbackParts(lead.callbackAt);
+      setPending({ leadId, date: parts.date, time: parts.time });
+      return;
+    }
+    setLeadGroup(leadId, group);
+  }
+
+  function confirmPending() {
+    if (!pending?.date || !pending.time) return;
+    updateLead(pending.leadId, { group: "reschedule", callbackAt: `${pending.date}T${pending.time}` });
+    setPending(null);
+  }
 
   return (
     <div className="space-y-5">
       <PageHeading
         eyebrow="Обзвон"
         title={seller ? `Лиды · ${seller.name}` : "Лиды"}
-        text="Все группы на одном экране. Карточка открывается поверх списка. Поиск смотрит имя, телефон и компанию сразу во всех."
+        text="Сверху — кому звонить сегодня. Ниже все группы. Карточка открывается поверх списка. Поиск смотрит имя, телефон и компанию."
         action={<Button onClick={() => setOpen(true)}>Новый лид</Button>}
       />
 
@@ -80,6 +123,45 @@ function Leads() {
         ) : null}
       </div>
 
+      <section aria-label="Кому звонить сегодня" className="rounded-2xl bg-card p-4 ring-1 ring-foreground/10">
+        <div className="flex items-baseline justify-between gap-3">
+          <h2 className="text-base font-semibold">Кому звонить сегодня</h2>
+          <p className="text-xs text-muted-foreground">{todayCalls.length}</p>
+        </div>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Новые, недозвон и перенос сроков, если звонок сегодня или срок уже прошёл.
+          {seller ? ` Список только ${seller.name}.` : ""}
+        </p>
+        {todayCalls.length === 0 ? (
+          <p className="mt-4 text-sm text-muted-foreground">{needle ? "Нет совпадений" : "На сегодня звонков нет."}</p>
+        ) : (
+          <ul className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+            {todayCalls.map((lead) => (
+              <li key={lead.id}>
+                <button
+                  type="button"
+                  className="w-full rounded-xl bg-muted/50 px-3 py-3 text-left ring-1 ring-foreground/10 hover:bg-muted"
+                  onClick={() => setPicked(lead.id)}
+                >
+                  <span className="flex items-start justify-between gap-2">
+                    <span className="text-sm font-semibold">{lead.name}</span>
+                    <span className="shrink-0 text-xs text-muted-foreground">{leadGroupTitle(lead.group)}</span>
+                  </span>
+                  <span className="mt-1 block text-xs text-muted-foreground">{primaryPhone(lead)}</span>
+                  <span className="mt-1 block text-xs">{lead.companyName || "Без компании"}</span>
+                  {lead.group === "reschedule" && lead.callbackAt ? (
+                    <span className="mt-1 block text-xs font-medium">
+                      {formatCallback(lead.callbackAt)}
+                      {callbackOverdue(lead.callbackAt) ? " · просрочено" : ""}
+                    </span>
+                  ) : null}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
       <div className="grid items-start gap-3 md:grid-cols-2 xl:grid-cols-5">
         {LEAD_GROUPS.map((group) => {
           const leads = shown.filter((lead) => lead.group === group.id);
@@ -90,7 +172,7 @@ function Leads() {
               className="rounded-2xl bg-muted/60 p-2"
               onDragOver={(event) => event.preventDefault()}
               onDrop={() => {
-                if (dragging) setLeadGroup(dragging, group.id);
+                if (dragging) requestMove(dragging, group.id);
                 setDragging(null);
               }}
             >
@@ -118,6 +200,12 @@ function Leads() {
                           <p className="text-sm font-semibold">{lead.name}</p>
                           <p className="mt-1 text-xs text-muted-foreground">{primaryPhone(lead)}</p>
                           <p className="mt-1 text-xs">{lead.companyName || "Без компании"}</p>
+                          {lead.group === "reschedule" && lead.callbackAt ? (
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              {formatCallback(lead.callbackAt)}
+                              {callbackOverdue(lead.callbackAt) ? " · просрочено" : ""}
+                            </p>
+                          ) : null}
                         </button>
                         <div className="mt-2 flex items-center justify-between gap-2">
                           {lead.demo ? <DemoBadge /> : <span />}
@@ -127,7 +215,7 @@ function Leads() {
                               className="h-7 w-full rounded-md border bg-background px-1 text-xs"
                               value={lead.group}
                               aria-label={`Перенести ${lead.name}`}
-                              onChange={(event) => setLeadGroup(lead.id, event.target.value as LeadGroup)}
+                              onChange={(event) => requestMove(lead.id, event.target.value as LeadGroup)}
                             >
                               {LEAD_GROUPS.map((item) => (
                                 <option key={item.id} value={item.id}>
@@ -147,8 +235,51 @@ function Leads() {
         })}
       </div>
 
-      <Dialog open={pickedLead !== null} onOpenChange={(next) => { if (!next) setPicked(null); }}>
-        {pickedLead && seller ? <LeadOverlay key={pickedLead.id} lead={pickedLead} sellerId={seller.id} sellerName={seller.name} /> : null}
+      <Dialog
+        open={pickedLead !== null}
+        onOpenChange={(next) => {
+          if (!next) {
+            setPicked(null);
+            setPending((current) => (current && current.leadId === picked ? null : current));
+          }
+        }}
+      >
+        {pickedLead && seller ? (
+          <LeadOverlay
+            key={pickedLead.id}
+            lead={pickedLead}
+            sellerId={seller.id}
+            sellerName={seller.name}
+            onMove={(group) => requestMove(pickedLead.id, group)}
+            schedule={pending && pending.leadId === pickedLead.id ? pending : null}
+            onScheduleDate={(date) => setPending((current) => (current ? { ...current, date } : current))}
+            onScheduleTime={(time) => setPending((current) => (current ? { ...current, time } : current))}
+            onScheduleConfirm={confirmPending}
+            onScheduleCancel={() => setPending(null)}
+          />
+        ) : null}
+      </Dialog>
+
+      <Dialog open={pending !== null && pending.leadId !== picked} onOpenChange={(next) => { if (!next) setPending(null); }}>
+        {pending && pendingLead && pending.leadId !== picked ? (
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Когда перезвонить?</DialogTitle>
+              <DialogDescription>
+                {pendingLead.name} попадёт в «Перенос сроков» после даты и времени. Без срока группа не меняется.
+              </DialogDescription>
+            </DialogHeader>
+            <CallbackAsk
+              framed={false}
+              date={pending.date}
+              time={pending.time}
+              onDate={(date) => setPending({ ...pending, date })}
+              onTime={(time) => setPending({ ...pending, time })}
+              onConfirm={confirmPending}
+              onCancel={() => setPending(null)}
+            />
+          </DialogContent>
+        ) : null}
       </Dialog>
 
       <LeadDialog
@@ -171,7 +302,6 @@ type Draft = {
   email: string;
   segment: Segment;
   interest: string;
-  group: LeadGroup;
   website: string;
   mapUrl: string;
 };
@@ -185,13 +315,76 @@ function draftFrom(lead: Lead): Draft {
     email: lead.email,
     segment: lead.segment,
     interest: lead.interest,
-    group: lead.group,
     website: lead.website,
     mapUrl: lead.mapUrl,
   };
 }
 
-function LeadOverlay({ lead, sellerId, sellerName }: { lead: Lead; sellerId: string; sellerName: string }) {
+function CallbackAsk({
+  date,
+  time,
+  onDate,
+  onTime,
+  onConfirm,
+  onCancel,
+  framed = true,
+}: {
+  date: string;
+  time: string;
+  onDate: (value: string) => void;
+  onTime: (value: string) => void;
+  onConfirm: () => void;
+  onCancel: () => void;
+  framed?: boolean;
+}) {
+  return (
+    <form
+      className={framed ? "space-y-3 rounded-xl bg-muted/50 p-3" : "space-y-3"}
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (date && time) onConfirm();
+      }}
+    >
+      {framed ? <p className="text-sm font-medium">Когда перезвонить?</p> : null}
+      <div className="grid gap-3 sm:grid-cols-2">
+        <label className="block space-y-1 text-sm">
+          Дата перезвона
+          <Input aria-label="Дата перезвона" type="date" required value={date} onChange={(event) => onDate(event.target.value)} />
+        </label>
+        <label className="block space-y-1 text-sm">
+          Время перезвона
+          <Input aria-label="Время перезвона" type="time" required value={time} onChange={(event) => onTime(event.target.value)} />
+        </label>
+      </div>
+      <div className="flex gap-2">
+        <Button type="submit" size="sm">Поставить срок</Button>
+        <Button type="button" size="sm" variant="outline" onClick={onCancel}>Отмена</Button>
+      </div>
+    </form>
+  );
+}
+
+function LeadOverlay({
+  lead,
+  sellerId,
+  sellerName,
+  onMove,
+  schedule,
+  onScheduleDate,
+  onScheduleTime,
+  onScheduleConfirm,
+  onScheduleCancel,
+}: {
+  lead: Lead;
+  sellerId: string;
+  sellerName: string;
+  onMove: (group: LeadGroup) => void;
+  schedule: { date: string; time: string } | null;
+  onScheduleDate: (value: string) => void;
+  onScheduleTime: (value: string) => void;
+  onScheduleConfirm: () => void;
+  onScheduleCancel: () => void;
+}) {
   const { data, updateLead, addSellerNote, addTask } = useCrm();
   const [draft, setDraft] = useState<Draft>(() => draftFrom(lead));
   const [linksOpen, setLinksOpen] = useState(Boolean(lead.website || lead.mapUrl));
@@ -263,11 +456,23 @@ function LeadOverlay({ lead, sellerId, sellerName }: { lead: Lead; sellerId: str
             Группа
             <ChoiceSelect
               label="Группа"
-              value={draft.group}
-              onChange={(value) => setDraft({ ...draft, group: value as LeadGroup })}
+              value={lead.group}
+              onChange={(value) => onMove(value as LeadGroup)}
               options={LEAD_GROUPS.map((item) => ({ value: item.id, label: item.title }))}
             />
           </label>
+          {schedule ? (
+            <CallbackAsk
+              date={schedule.date}
+              time={schedule.time}
+              onDate={onScheduleDate}
+              onTime={onScheduleTime}
+              onConfirm={onScheduleConfirm}
+              onCancel={onScheduleCancel}
+            />
+          ) : lead.group === "reschedule" ? (
+            <CallbackEditor leadId={lead.id} callbackAt={lead.callbackAt} />
+          ) : null}
         </div>
         <div className="space-y-4">
           <div>
@@ -377,5 +582,46 @@ function LeadOverlay({ lead, sellerId, sellerName }: { lead: Lead; sellerId: str
         </div>
       </div>
     </DialogContent>
+  );
+}
+
+function CallbackEditor({ leadId, callbackAt }: { leadId: string; callbackAt: string | null }) {
+  const { updateLead } = useCrm();
+  const initial = splitCallback(callbackAt);
+  const [date, setDate] = useState(initial?.date ?? "");
+  const [time, setTime] = useState(initial?.time ?? "");
+
+  function commit(nextDate: string, nextTime: string) {
+    if (!nextDate || !nextTime) return;
+    updateLead(leadId, { callbackAt: `${nextDate}T${nextTime}` });
+  }
+
+  return (
+    <div className="grid gap-3 sm:grid-cols-2">
+      <label className="block space-y-1 text-sm">
+        Дата перезвона
+        <Input
+          aria-label="Дата перезвона"
+          type="date"
+          value={date}
+          onChange={(event) => {
+            setDate(event.target.value);
+            commit(event.target.value, time);
+          }}
+        />
+      </label>
+      <label className="block space-y-1 text-sm">
+        Время перезвона
+        <Input
+          aria-label="Время перезвона"
+          type="time"
+          value={time}
+          onChange={(event) => {
+            setTime(event.target.value);
+            commit(date, event.target.value);
+          }}
+        />
+      </label>
+    </div>
   );
 }

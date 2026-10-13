@@ -161,6 +161,7 @@ export type Lead = {
   segment: Segment;
   interest: string;
   group: LeadGroup;
+  callbackAt: string | null;
   website: string;
   mapUrl: string;
   createdAt: string;

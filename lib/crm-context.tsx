@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { toast } from "sonner";
-import { todayIso, uid } from "@/lib/format";
+import { callbackStampOrNull, todayIso, uid } from "@/lib/format";
 import { quoteProduct } from "@/lib/pricing";
 import { productById } from "@/lib/products";
 import { createSeed } from "@/lib/seed";
@@ -96,6 +96,7 @@ function normalizeLead(raw: unknown): Lead | null {
     segment,
     interest: typeof lead.interest === "string" ? lead.interest : "",
     group: leadGroupFromUnknown(lead.group, lead.callStatus),
+    callbackAt: callbackStampOrNull(lead.callbackAt),
     website: typeof lead.website === "string" ? lead.website : "",
     mapUrl: typeof lead.mapUrl === "string" ? lead.mapUrl : "",
     createdAt: typeof lead.createdAt === "string" ? lead.createdAt : "",
@@ -237,7 +238,7 @@ type CrmApi = {
   setLeadGroup: (id: string, group: LeadGroup) => void;
   updateLead: (
     id: string,
-    patch: Partial<Pick<Lead, "name" | "phones" | "companyName" | "city" | "email" | "segment" | "interest" | "group" | "website" | "mapUrl">>,
+    patch: Partial<Pick<Lead, "name" | "phones" | "companyName" | "city" | "email" | "segment" | "interest" | "group" | "callbackAt" | "website" | "mapUrl">>,
   ) => void;
   addSellerNote: (leadId: string, text: string) => void;
   addCompany: (input: Omit<Company, "id" | "demo">) => string;
@@ -308,6 +309,7 @@ export function CrmProvider({ children }: { children: React.ReactNode }) {
             segment: input.segment,
             interest: input.interest,
             group: input.group,
+            callbackAt: input.group === "reschedule" ? input.callbackAt : null,
             website: input.website,
             mapUrl: input.mapUrl,
             createdAt: new Date().toISOString(),

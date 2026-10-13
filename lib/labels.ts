@@ -42,7 +42,7 @@ export const OPEN_STAGES: DealStage[] = ["new", "qualify", "offer", "negotiate",
 export const LEAD_GROUPS: { id: LeadGroup; title: string; hint: string }[] = [
   { id: "new", title: "Новые", hint: "Ещё не звонили или задачи нет" },
   { id: "no-answer", title: "Недозвон", hint: "Не взяли трубку" },
-  { id: "reschedule", title: "Перенос сроков", hint: "Созвонились и перенесли дату" },
+  { id: "reschedule", title: "Перенос сроков", hint: "Стоит дата и время перезвона" },
   { id: "feedback", title: "Обратная связь", hint: "Ждём ответ покупателя" },
   { id: "warm", title: "Теплые", hint: "Интерес есть, можно вести дальше" },
 ];

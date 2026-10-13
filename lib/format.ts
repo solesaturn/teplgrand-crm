@@ -40,11 +40,65 @@ export function formatStamp(iso: string) {
   }).format(date);
 }
 
-export function todayIso() {
-  const now = new Date();
+function todayFrom(now: Date) {
   const month = String(now.getMonth() + 1).padStart(2, "0");
   const day = String(now.getDate()).padStart(2, "0");
   return `${now.getFullYear()}-${month}-${day}`;
+}
+
+export function todayIso() {
+  return todayFrom(new Date());
+}
+
+const CALLBACK_RE = /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})$/;
+
+export function splitCallback(value: string | null | undefined) {
+  if (!value) return null;
+  const match = CALLBACK_RE.exec(value);
+  if (!match) return null;
+  return { date: match[1], time: match[2] };
+}
+
+export function callbackStampOrNull(value: unknown) {
+  return typeof value === "string" && splitCallback(value) ? value : null;
+}
+
+export function callbackDateTime(value: string | null | undefined) {
+  const parts = splitCallback(value);
+  if (!parts) return null;
+  const [year, month, day] = parts.date.split("-").map(Number);
+  const [hour, minute] = parts.time.split(":").map(Number);
+  if (!year || !month || !day || Number.isNaN(hour) || Number.isNaN(minute)) return null;
+  return new Date(year, month - 1, day, hour, minute, 0, 0);
+}
+
+export function callbackDue(value: string | null | undefined, now = new Date()) {
+  const parts = splitCallback(value);
+  if (!parts) return false;
+  return parts.date <= todayFrom(now);
+}
+
+export function callbackOverdue(value: string | null | undefined, now = new Date()) {
+  const moment = callbackDateTime(value);
+  if (!moment) return false;
+  return moment.getTime() < now.getTime();
+}
+
+export function formatCallback(value: string) {
+  const moment = callbackDateTime(value);
+  const parts = splitCallback(value);
+  if (!moment || !parts) return value;
+  const day = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short" }).format(moment);
+  return `${day}, ${parts.time}`;
+}
+
+export function defaultCallbackParts(existing: string | null | undefined, now = new Date()) {
+  const parsed = splitCallback(existing);
+  if (parsed) return parsed;
+  const next = new Date(now);
+  next.setMinutes(0, 0, 0);
+  next.setHours(next.getHours() + 1);
+  return { date: todayFrom(next), time: `${String(next.getHours()).padStart(2, "0")}:00` };
 }
 
 export function norm(value: string) {
