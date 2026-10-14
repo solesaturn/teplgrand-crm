@@ -362,6 +362,7 @@ type CrmApi = {
   login: (login: string, password: string) => Promise<"ok" | "invalid">;
   logout: () => void;
   addSeller: (input: { name: string; login: string; password: string }) => Promise<{ ok: true } | { ok: false; error: string }>;
+  removeSeller: (id: string) => void;
   addLead: (input: Omit<Lead, "id" | "sellerId" | "demo" | "createdAt"> & { note?: string }) => string;
   setLeadGroup: (id: string, group: LeadGroup) => void;
   updateLead: (
@@ -466,6 +467,26 @@ export function CrmProvider({ children }: { children: React.ReactNode }) {
         });
         toast.success("Продавец может войти под своим логином");
         return { ok: true };
+      },
+      removeSeller: (id) => {
+        const current = readClient();
+        if (current.status !== "ready" || current.session?.kind !== "admin") return;
+        if (current.data.admins.some((admin) => admin.id === id)) return;
+        const seller = current.data.sellers.find((item) => item.id === id);
+        if (!seller) return;
+        const leadIds = new Set(current.data.leads.filter((lead) => lead.sellerId === id).map((lead) => lead.id));
+        mutate((draft) => {
+          draft.sellers = draft.sellers.filter((item) => item.id !== id);
+          draft.leads = draft.leads.filter((lead) => lead.sellerId !== id);
+          draft.sellerNotes = draft.sellerNotes.filter((note) => note.sellerId !== id && !leadIds.has(note.leadId));
+          draft.leadCalls = draft.leadCalls.filter((call) => call.sellerId !== id && !leadIds.has(call.leadId));
+          draft.tasks = draft.tasks.filter((task) => !task.leadId || !leadIds.has(task.leadId));
+        });
+        const after = readClient();
+        if (after.session?.kind === "seller" && after.session.sellerId === id) {
+          publish({ ...after, session: null });
+        }
+        toast.success("Продавец удалён. Войти он больше не сможет.");
       },
       addLead: (input) => {
         const sellerId = currentSellerId();

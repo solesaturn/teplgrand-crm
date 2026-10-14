@@ -2,17 +2,20 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useCrm } from "@/lib/crm-context";
 
 export function AdminScreen() {
-  const { data, addSeller } = useCrm();
+  const { data, addSeller, removeSeller } = useCrm();
   const [name, setName] = useState("");
   const [loginName, setLoginName] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
+  const [confirming, setConfirming] = useState<string | null>(null);
+  const confirmingSeller = data.sellers.find((seller) => seller.id === confirming) ?? null;
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -30,6 +33,7 @@ export function AdminScreen() {
   }
 
   return (
+    <>
     <div className="mx-auto grid max-w-5xl gap-6 lg:grid-cols-[1fr_320px]">
       <section className="rounded-2xl bg-card p-5 ring-1 ring-foreground/10" aria-label="Продавцы">
         <p className="text-[11px] font-medium tracking-[0.16em] text-[oklch(0.48_0.06_55)] uppercase">Отдел</p>
@@ -40,12 +44,17 @@ export function AdminScreen() {
         ) : (
           <ul className="mt-4 divide-y divide-border">
             {data.sellers.map((seller) => (
-              <li key={seller.id} className="flex items-baseline justify-between gap-3 py-3">
-                <div>
+              <li key={seller.id} className="flex items-center justify-between gap-3 py-3">
+                <div className="min-w-0">
                   <p className="font-medium">{seller.name}</p>
                   <p className="text-sm text-muted-foreground">{[seller.role, seller.city].filter(Boolean).join(" · ")}</p>
                 </div>
-                <p className="font-mono text-sm">{seller.login}</p>
+                <div className="flex items-center gap-3">
+                  <p className="font-mono text-sm">{seller.login}</p>
+                  <Button type="button" variant="outline" size="sm" aria-label={`Удалить ${seller.name}`} onClick={() => setConfirming(seller.id)}>
+                    Удалить
+                  </Button>
+                </div>
               </li>
             ))}
           </ul>
@@ -85,5 +94,31 @@ export function AdminScreen() {
         </Button>
       </form>
     </div>
+    <Dialog open={confirmingSeller !== null} onOpenChange={(open) => { if (!open) setConfirming(null); }}>
+      {confirmingSeller ? (
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Удалить {confirmingSeller.name}?</DialogTitle>
+            <DialogDescription>
+              Логин, лиды, заметки и история звонков этого продавца исчезнут. Войти он больше не сможет.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setConfirming(null)}>Отмена</Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={() => {
+                removeSeller(confirmingSeller.id);
+                setConfirming(null);
+              }}
+            >
+              Удалить
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      ) : null}
+    </Dialog>
+    </>
   );
 }
