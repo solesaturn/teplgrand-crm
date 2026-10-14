@@ -17,9 +17,10 @@ export default function DashboardPage() {
 }
 
 function Dashboard() {
-  const { data, sellerId } = useCrm();
+  const { data, session, sellerId } = useCrm();
+  const isAdmin = session?.kind === "admin";
   const seller = data.sellers.find((item) => item.id === sellerId);
-  const myLeads = data.leads.filter((lead) => lead.sellerId === sellerId);
+  const myLeads = isAdmin ? data.leads : data.leads.filter((lead) => lead.sellerId === sellerId);
   const today = todayIso();
   const openDeals = data.deals.filter((deal) => OPEN_STAGES.includes(deal.stage));
   const openSum = openDeals.reduce((sum, deal) => sum + deal.amount, 0);
@@ -44,8 +45,10 @@ function Dashboard() {
       <section className="rounded-2xl bg-card p-4 ring-1 ring-foreground/10">
         <div className="flex items-end justify-between gap-3">
           <div>
-            <h2 className="font-semibold">Лиды {seller ? `· ${seller.name}` : ""}</h2>
-            <p className="text-sm text-muted-foreground">Ваши группы. Чужие лиды и заметки сюда не попадают.</p>
+            <h2 className="font-semibold">{isAdmin ? "Лиды отдела" : seller ? `Лиды · ${seller.name}` : "Лиды"}</h2>
+            <p className="text-sm text-muted-foreground">
+              {isAdmin ? "Все продавцы. Заметки и звонки остаются у того, кто их записал." : "Ваши группы. Чужие лиды и заметки сюда не попадают."}
+            </p>
           </div>
           <Button nativeButton={false} variant="outline" render={<Link href="/leads" />}>
             К списку

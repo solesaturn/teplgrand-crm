@@ -16,7 +16,15 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-export function PhoneList({ phones, onChange }: { phones: LeadPhone[]; onChange: (phones: LeadPhone[]) => void }) {
+export function PhoneList({
+  phones,
+  onChange,
+  readOnly = false,
+}: {
+  phones: LeadPhone[];
+  onChange: (phones: LeadPhone[]) => void;
+  readOnly?: boolean;
+}) {
   return (
     <div className="space-y-2">
       {phones.map((phone, index) => (
@@ -27,6 +35,7 @@ export function PhoneList({ phones, onChange }: { phones: LeadPhone[]; onChange:
               inputMode="tel"
               aria-label={index === 0 ? "Телефон" : `Телефон ${index + 1}`}
               placeholder="+7 900 000-00-00"
+              readOnly={readOnly}
               onChange={(event) => onChange(phones.map((item) => (item.id === phone.id ? { ...item, number: event.target.value } : item)))}
             />
           </Field>
@@ -35,10 +44,11 @@ export function PhoneList({ phones, onChange }: { phones: LeadPhone[]; onChange:
               value={phone.owner}
               aria-label={`Чей номер ${index + 1}`}
               placeholder="Чей номер"
+              readOnly={readOnly}
               onChange={(event) => onChange(phones.map((item) => (item.id === phone.id ? { ...item, owner: event.target.value } : item)))}
             />
           </Field>
-          {phones.length > 1 ? (
+          {!readOnly && phones.length > 1 ? (
             <Button
               type="button"
               variant="ghost"
@@ -53,14 +63,16 @@ export function PhoneList({ phones, onChange }: { phones: LeadPhone[]; onChange:
           )}
         </div>
       ))}
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        onClick={() => onChange([...phones, { id: uid("ph"), number: "", owner: "" }])}
-      >
-        Ещё номер
-      </Button>
+      {readOnly ? null : (
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => onChange([...phones, { id: uid("ph"), number: "", owner: "" }])}
+        >
+          Ещё номер
+        </Button>
+      )}
     </div>
   );
 }
@@ -76,6 +88,7 @@ export function BuyerLinks({
   mapUrl,
   onWebsite,
   onMap,
+  readOnly = false,
 }: {
   open: boolean;
   onOpen: () => void;
@@ -83,6 +96,7 @@ export function BuyerLinks({
   mapUrl: string;
   onWebsite: (value: string) => void;
   onMap: (value: string) => void;
+  readOnly?: boolean;
 }) {
   if (!open) {
     return (
@@ -101,6 +115,7 @@ export function BuyerLinks({
           inputMode="url"
           aria-label="Сайт покупателя"
           placeholder="https://example.ru"
+          readOnly={readOnly}
           onChange={(event) => onWebsite(event.target.value)}
         />
       </Field>
@@ -110,6 +125,7 @@ export function BuyerLinks({
           inputMode="url"
           aria-label="Яндекс Карты"
           placeholder="https://yandex.ru/maps/?text=город улица"
+          readOnly={readOnly}
           onChange={(event) => onMap(event.target.value)}
         />
       </Field>

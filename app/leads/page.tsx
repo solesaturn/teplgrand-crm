@@ -50,9 +50,9 @@ function currentTime() {
   return `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
 }
 
-function matches(lead: Lead, needle: string) {
+function matches(lead: Lead, needle: string, sellerName = "") {
   if (!needle) return true;
-  const haystack = norm([lead.name, leadPhonesText(lead), lead.companyName].join(" "));
+  const haystack = norm([lead.name, leadPhonesText(lead), lead.companyName, sellerName].join(" "));
   if (haystack.includes(needle)) return true;
   const digits = needle.replace(/\D/g, "");
   return digits.length >= 3 && lead.phones.some((phone) => phone.number.replace(/\D/g, "").includes(digits));
@@ -73,7 +73,8 @@ function todayCallsOf(leads: Lead[], now = new Date()) {
 }
 
 function Leads() {
-  const { data, sellerId, setLeadGroup, updateLead } = useCrm();
+  const { data, session, sellerId, setLeadGroup, updateLead } = useCrm();
+  const isAdmin = session?.kind === "admin";
   const seller = data.sellers.find((item) => item.id === sellerId) ?? null;
   const [query, setQuery] = useState("");
   const [picked, setPicked] = useState<string | null>(null);
@@ -81,9 +82,16 @@ function Leads() {
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState<{ leadId: string; date: string; time: string } | null>(null);
   const needle = norm(query);
+  const sellerName = (id: string) => data.sellers.find((item) => item.id === id)?.name ?? "";
 
-  const mine = useMemo(() => data.leads.filter((lead) => lead.sellerId === sellerId), [data.leads, sellerId]);
-  const shown = useMemo(() => mine.filter((lead) => matches(lead, needle)), [mine, needle]);
+  const mine = useMemo(
+    () => (isAdmin ? data.leads : data.leads.filter((lead) => lead.sellerId === sellerId)),
+    [data.leads, isAdmin, sellerId],
+  );
+  const shown = useMemo(() => {
+    const nameOf = (id: string) => data.sellers.find((item) => item.id === id)?.name ?? "";
+    return mine.filter((lead) => matches(lead, needle, isAdmin ? nameOf(lead.sellerId) : ""));
+  }, [data.sellers, isAdmin, mine, needle]);
   const todayCalls = useMemo(() => todayCallsOf(shown), [shown]);
   const pickedLead = mine.find((lead) => lead.id === picked) ?? null;
   const pendingLead = mine.find((lead) => lead.id === pending?.leadId) ?? null;
@@ -109,9 +117,13 @@ function Leads() {
     <div className="space-y-5">
       <PageHeading
         eyebrow="Обзвон"
-        title={seller ? `Лиды · ${seller.name}` : "Лиды"}
-        text="Сверху — кому звонить сегодня. Ниже все группы. Карточка открывается поверх списка. Поиск смотрит имя, телефон и компанию."
-        action={<Button onClick={() => setOpen(true)}>Новый лид</Button>}
+        title={isAdmin ? "Лиды" : seller ? `Лиды · ${seller.name}` : "Лиды"}
+        text={
+          isAdmin
+            ? "Сверху — кому звонить сегодня по всему отделу. На карточке имя продавца. Поиск смотрит имя, телефон, компанию и продавца."
+            : "Сверху — кому звонить сегодня. Ниже все группы. Карточка открывается поверх списка. Поиск смотрит имя, телефон и компанию."
+        }
+        action={isAdmin ? undefined : <Button onClick={() => setOpen(true)}>Новый лид</Button>}
       />
 
       <div className="flex flex-col gap-2 sm:flex-row">
@@ -135,7 +147,7 @@ function Leads() {
         </div>
         <p className="mt-1 text-sm text-muted-foreground">
           Новые, недозвон и перенос сроков, если звонок сегодня или срок уже прошёл.
-          {seller ? ` Список только ${seller.name}.` : ""}
+          {isAdmin ? " Список всего отдела." : seller ? ` Список только ${seller.name}.` : ""}
         </p>
         {todayCalls.length === 0 ? (
           <p className="mt-4 text-sm text-muted-foreground">{needle ? "Нет совпадений" : "На сегодня звонков нет."}</p>
@@ -153,6 +165,9 @@ function Leads() {
                     <span className="shrink-0 text-xs text-muted-foreground">{leadGroupTitle(lead.group)}</span>
                   </span>
                   <span className="mt-1 block text-xs text-muted-foreground">{primaryPhone(lead)}</span>
+                  {isAdmin && sellerName(lead.sellerId) ? (
+                    <span className="mt-1 block text-xs font-medium">{sellerName(lead.sellerId)}</span>
+                  ) : null}
                   <span className="mt-1 block text-xs">{lead.companyName || "Без компании"}</span>
                   {lead.group === "reschedule" && lead.callbackAt ? (
                     <span className="mt-1 block text-xs font-medium">
@@ -203,6 +218,9 @@ function Leads() {
                       >
                         <button type="button" className="w-full text-left" onClick={() => setPicked(lead.id)}>
                           <p className="text-sm font-semibold">{lead.name}</p>
+                          {isAdmin && sellerName(lead.sellerId) ? (
+                            <p className="mt-1 text-xs font-medium">{sellerName(lead.sellerId)}</p>
+                          ) : null}
                           <p className="mt-1 text-xs text-muted-foreground">{primaryPhone(lead)}</p>
                           <p className="mt-1 text-xs">{lead.companyName || "Без компании"}</p>
                           {lead.group === "reschedule" && lead.callbackAt ? (
@@ -248,12 +266,12 @@ function Leads() {
           }
         }}
       >
-        {pickedLead && seller ? (
+        {pickedLead && sellerName(pickedLead.sellerId) ? (
           <LeadOverlay
             key={pickedLead.id}
             lead={pickedLead}
-            sellerId={seller.id}
-            sellerName={seller.name}
+            sellerId={pickedLead.sellerId}
+            sellerName={sellerName(pickedLead.sellerId)}
             onMove={(group) => requestMove(pickedLead.id, group)}
             schedule={pending && pending.leadId === pickedLead.id ? pending : null}
             onScheduleDate={(date) => setPending((current) => (current ? { ...current, date } : current))}
@@ -389,7 +407,8 @@ function LeadOverlay({
   onScheduleConfirm: () => void;
   onScheduleCancel: () => void;
 }) {
-  const { data, updateLead, addSellerNote, addLeadCall, addTask } = useCrm();
+  const { data, session, updateLead, addSellerNote, addLeadCall, addTask } = useCrm();
+  const adminView = session?.kind === "admin";
   const [draft, setDraft] = useState<Draft>(() => draftFrom(lead));
   const [linksOpen, setLinksOpen] = useState(Boolean(lead.website || lead.mapUrl));
   const [taskOpen, setTaskOpen] = useState(false);
@@ -424,31 +443,34 @@ function LeadOverlay({
       <DialogHeader>
         <DialogTitle>Карточка лида</DialogTitle>
         <DialogDescription>
-          Поверх списка. Поля сохраняются сами. Заметку видит только {sellerName}.
+          {adminView
+            ? `Лид ведёт ${sellerName}. Здесь поля, телефоны, ссылки, задачи, звонки и заметки этого продавца.`
+            : `Поверх списка. Поля сохраняются сами. Заметку видит только ${sellerName}.`}
         </DialogDescription>
       </DialogHeader>
       <div className="grid max-h-[75vh] gap-4 overflow-y-auto pr-1 lg:grid-cols-2">
         <div className="space-y-3">
           <label className="block space-y-1 text-sm">
             Имя
-            <Input aria-label="Имя" value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} />
+            <Input aria-label="Имя" readOnly={adminView} value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} />
           </label>
           <PhoneList
             phones={draft.phones.length ? draft.phones : [{ id: `${lead.id}-blank`, number: "", owner: "" }]}
             onChange={(phones) => setDraft({ ...draft, phones })}
+            readOnly={adminView}
           />
           <label className="block space-y-1 text-sm">
             Компания или объект
-            <Input aria-label="Компания" value={draft.companyName} onChange={(event) => setDraft({ ...draft, companyName: event.target.value })} />
+            <Input aria-label="Компания" readOnly={adminView} value={draft.companyName} onChange={(event) => setDraft({ ...draft, companyName: event.target.value })} />
           </label>
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="block space-y-1 text-sm">
               Город
-              <Input aria-label="Город" value={draft.city} onChange={(event) => setDraft({ ...draft, city: event.target.value })} />
+              <Input aria-label="Город" readOnly={adminView} value={draft.city} onChange={(event) => setDraft({ ...draft, city: event.target.value })} />
             </label>
             <label className="block space-y-1 text-sm">
               Почта
-              <Input aria-label="Почта" type="email" value={draft.email} onChange={(event) => setDraft({ ...draft, email: event.target.value })} />
+              <Input aria-label="Почта" type="email" readOnly={adminView} value={draft.email} onChange={(event) => setDraft({ ...draft, email: event.target.value })} />
             </label>
           </div>
           <label className="block space-y-1 text-sm">
@@ -462,7 +484,7 @@ function LeadOverlay({
           </label>
           <label className="block space-y-1 text-sm">
             Что нужно
-            <Textarea aria-label="Что нужно" value={draft.interest} onChange={(event) => setDraft({ ...draft, interest: event.target.value })} />
+            <Textarea aria-label="Что нужно" readOnly={adminView} value={draft.interest} onChange={(event) => setDraft({ ...draft, interest: event.target.value })} />
           </label>
           <label className="block space-y-1 text-sm">
             Группа
@@ -491,21 +513,24 @@ function LeadOverlay({
             <p className="text-sm font-medium">Ссылки</p>
             <div className="mt-2">
               <BuyerLinks
-                open={linksOpen}
+                open={linksOpen || adminView}
                 onOpen={() => setLinksOpen(true)}
                 website={draft.website}
                 mapUrl={draft.mapUrl}
                 onWebsite={(website) => setDraft({ ...draft, website })}
                 onMap={(mapUrl) => setDraft({ ...draft, mapUrl })}
+                readOnly={adminView}
               />
             </div>
           </div>
           <div>
             <div className="flex items-center justify-between gap-2">
               <p className="text-sm font-medium">Задачи этого лида</p>
-              <Button type="button" size="sm" variant="outline" onClick={() => setTaskOpen((value) => !value)}>
-                + Задача
-              </Button>
+              {adminView ? null : (
+                <Button type="button" size="sm" variant="outline" onClick={() => setTaskOpen((value) => !value)}>
+                  + Задача
+                </Button>
+              )}
             </div>
             {taskOpen ? (
               <form
@@ -562,7 +587,12 @@ function LeadOverlay({
           </div>
           <div aria-label="История звонков">
             <p className="text-sm font-medium">История звонков</p>
-            <p className="mt-1 text-xs text-muted-foreground">Несколько записей подряд. Видит только {sellerName}. Группа лида от этого не меняется.</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {adminView
+                ? `Записи ${sellerName}. Группа лида от этого не меняется.`
+                : `Несколько записей подряд. Видит только ${sellerName}. Группа лида от этого не меняется.`}
+            </p>
+            {adminView ? null : (
             <form
               className="mt-2 space-y-2 rounded-xl bg-background p-3 ring-1 ring-foreground/10"
               onSubmit={(event) => {
@@ -598,6 +628,7 @@ function LeadOverlay({
               {callError ? <p className="text-sm text-destructive">{callError}</p> : null}
               <Button type="submit" size="sm">Записать звонок</Button>
             </form>
+            )}
             {calls.length === 0 ? (
               <p className="mt-2 text-sm text-muted-foreground">Звонков ещё не записывали.</p>
             ) : (
@@ -614,8 +645,11 @@ function LeadOverlay({
             )}
           </div>
           <div>
-            <p className="text-sm font-medium">Заметка для себя</p>
-            <p className="mt-1 text-xs text-muted-foreground">Видит только {sellerName}. В общую карточку компании это не пишется.</p>
+            <p className="text-sm font-medium">{adminView ? `Заметка · ${sellerName}` : "Заметка для себя"}</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {adminView ? `Заметки ${sellerName}. В карточку компании это не пишется.` : `Видит только ${sellerName}. В общую карточку компании это не пишется.`}
+            </p>
+            {adminView ? null : (
             <form
               className="mt-2 space-y-2"
               onSubmit={(event) => {
@@ -633,6 +667,7 @@ function LeadOverlay({
               {noteError ? <p className="text-sm text-destructive">{noteError}</p> : null}
               <Button type="submit" variant="outline" size="sm">Сохранить заметку</Button>
             </form>
+            )}
             {notes.length > 0 ? (
               <ul className="mt-3 space-y-2">
                 {notes.map((item) => (

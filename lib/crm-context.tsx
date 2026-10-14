@@ -292,6 +292,7 @@ let bootPromise: Promise<void> | null = null;
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
 let saveFlight = false;
 let saveDirty = false;
+let unloadInstalled = false;
 
 async function readJson(response: Response) {
   return (await response.json().catch(() => null)) as { error?: string; session?: Session | null; data?: CrmData } & Partial<CrmData> | null;
@@ -380,11 +381,32 @@ async function flushSave() {
 function scheduleSave() {
   if (readClient().session?.kind !== "seller") return;
   saveDirty = true;
+  installUnloadSave();
   if (saveTimer) clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
     saveTimer = null;
     void flushSave();
   }, 200);
+}
+
+function installUnloadSave() {
+  if (unloadInstalled || typeof window === "undefined") return;
+  unloadInstalled = true;
+  window.addEventListener("pagehide", () => {
+    if (!saveDirty && !saveTimer) return;
+    if (saveTimer) clearTimeout(saveTimer);
+    saveTimer = null;
+    const snap = readClient();
+    if (snap.status !== "ready" || snap.session?.kind !== "seller") return;
+    saveDirty = false;
+    void fetch("/api/crm", {
+      method: "PUT",
+      keepalive: true,
+      cache: "no-store",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(snap.data),
+    });
+  });
 }
 
 function subscribe(listener: () => void) {

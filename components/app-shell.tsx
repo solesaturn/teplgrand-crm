@@ -11,9 +11,9 @@ import {
   Menu,
   PhoneCall,
   Rows3,
+  Shield,
   Users,
 } from "lucide-react";
-import { AdminScreen } from "@/components/admin-screen";
 import { LoginScreen } from "@/components/login-screen";
 import { PageSkeleton } from "@/components/crm-ui";
 import { Button } from "@/components/ui/button";
@@ -43,7 +43,7 @@ function active(pathname: string, href: string) {
 }
 
 export function AppShell({ children }: { children: React.ReactNode }) {
-  const { status, session, error, reset, data, logout } = useCrm();
+  const { status, session, error, reset } = useCrm();
   if (status === "loading") {
     return (
       <div className="min-h-dvh px-4 py-8">
@@ -66,49 +66,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     );
   }
   if (!session) return <LoginScreen />;
-  if (session.kind === "admin") {
-    const admin = data.admins.find((item) => item.id === session.adminId);
-    return (
-      <div className="min-h-dvh md:grid md:grid-cols-[240px_1fr]">
-        <aside className="hidden md:flex md:min-h-dvh md:flex-col md:bg-sidebar md:text-sidebar-foreground">
-          <div className="border-b border-sidebar-border px-4 py-4">
-            <p className="text-[11px] font-medium tracking-[0.18em] text-[oklch(0.78_0.05_75)] uppercase">Теплогранд</p>
-            <p className="mt-1 text-lg font-semibold leading-tight">Продажи</p>
-            <p className="mt-1 text-xs text-sidebar-foreground/70">{COMPANY.line}</p>
-          </div>
-          <div className="p-3">
-            <div className="rounded-xl bg-sidebar-accent p-3">
-              <p className="text-[11px] font-medium tracking-[0.14em] text-sidebar-foreground/65 uppercase">Администратор</p>
-              <p className="truncate text-sm font-semibold">{admin?.name ?? "Администратор"}</p>
-              <Button type="button" variant="secondary" className="mt-3 h-8 w-full" onClick={logout}>
-                Выйти
-              </Button>
-            </div>
-          </div>
-        </aside>
-        <div className="flex min-h-dvh flex-col">
-          <header className="flex items-center justify-between border-b px-4 py-3 md:hidden">
-            <div>
-              <p className="text-[11px] font-medium tracking-[0.16em] text-[oklch(0.48_0.06_55)] uppercase">Теплогранд</p>
-              <p className="text-sm font-semibold">{admin?.name ?? "Администратор"}</p>
-            </div>
-            <Button type="button" variant="outline" onClick={logout}>
-              Выйти
-            </Button>
-          </header>
-          <main className="flex-1 px-4 py-5 md:px-8 md:py-8">
-            <AdminScreen />
-          </main>
-        </div>
-      </div>
-    );
-  }
   return <SellerShell>{children}</SellerShell>;
 }
 
 function SellerShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const links = [...PRIMARY, ...MORE];
+  const { session } = useCrm();
+  const sellers = session?.kind === "admin" ? [{ href: "/sellers", label: "Продавцы", icon: Shield }] : [];
+  const links = [...PRIMARY, ...sellers, ...MORE];
 
   return (
     <div className="min-h-dvh md:grid md:grid-cols-[240px_1fr]">
