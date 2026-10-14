@@ -1,31 +1,29 @@
 "use client";
 
-import { ChoiceSelect } from "@/components/crm-ui";
+import { Button } from "@/components/ui/button";
 import { useCrm } from "@/lib/crm-context";
 
-export function SellerSwitch({ tone = "light" }: { tone?: "light" | "sidebar" }) {
-  const { status, data, sellerId, switchSeller } = useCrm();
-  if (status !== "ready" || data.sellers.length === 0) return null;
-  const seller = data.sellers.find((item) => item.id === sellerId) ?? data.sellers[0];
+export function AccountPanel({ tone = "light" }: { tone?: "light" | "sidebar" }) {
+  const { data, sellerId, logout } = useCrm();
+  const seller = data.sellers.find((item) => item.id === sellerId);
+  if (!seller) return null;
   const quiet = tone === "sidebar" ? "text-sidebar-foreground/65" : "text-muted-foreground";
   const name = tone === "sidebar" ? "text-sidebar-foreground" : "text-foreground";
+  const detail = [seller.role, seller.city].filter(Boolean).join(" · ");
 
   return (
     <div className={tone === "sidebar" ? "rounded-xl bg-sidebar-accent p-3" : "min-w-0"}>
       <p className={`text-[11px] font-medium tracking-[0.14em] uppercase ${quiet}`}>Вы за столом</p>
       <p className={`truncate text-sm font-semibold ${name}`}>{seller.name}</p>
-      <p className={`truncate text-xs ${quiet}`}>
-        {seller.role} · {seller.city}
-      </p>
-      <div className={tone === "sidebar" ? "mt-2 rounded-lg bg-background p-1 text-foreground" : "mt-2"}>
-        <ChoiceSelect
-          label="Сменить продавца"
-          value={seller.id}
-          onChange={switchSeller}
-          options={data.sellers.map((item) => ({ value: item.id, label: item.name }))}
-        />
-      </div>
-      <p className={`mt-2 text-[11px] leading-snug ${quiet}`}>Лиды и заметки этого продавца.</p>
+      {detail ? <p className={`truncate text-xs ${quiet}`}>{detail}</p> : null}
+      <Button
+        type="button"
+        variant={tone === "sidebar" ? "secondary" : "outline"}
+        className="mt-3 h-8 w-full"
+        onClick={logout}
+      >
+        Выйти
+      </Button>
     </div>
   );
 }

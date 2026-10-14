@@ -13,9 +13,13 @@ import {
   Rows3,
   Users,
 } from "lucide-react";
+import { AdminScreen } from "@/components/admin-screen";
+import { LoginScreen } from "@/components/login-screen";
+import { PageSkeleton } from "@/components/crm-ui";
 import { Button } from "@/components/ui/button";
-import { SellerSwitch } from "@/components/seller-switch";
+import { AccountPanel } from "@/components/seller-switch";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { useCrm } from "@/lib/crm-context";
 import { COMPANY } from "@/lib/policy";
 import { cn } from "cn";
 
@@ -39,6 +43,70 @@ function active(pathname: string, href: string) {
 }
 
 export function AppShell({ children }: { children: React.ReactNode }) {
+  const { status, session, error, reset, data, logout } = useCrm();
+  if (status === "loading") {
+    return (
+      <div className="min-h-dvh px-4 py-8">
+        <PageSkeleton />
+      </div>
+    );
+  }
+  if (status === "error") {
+    return (
+      <div className="flex min-h-dvh items-center justify-center px-4">
+        <div className="max-w-lg rounded-2xl bg-card p-6 ring-1 ring-foreground/10">
+          <p className="text-xs font-medium tracking-[0.16em] text-primary uppercase">Теплогранд</p>
+          <h1 className="mt-2 text-xl font-semibold">Данные отдела не открылись</h1>
+          <p className="mt-2 text-sm text-muted-foreground">{error ?? "Локальная копия повреждена."}</p>
+          <Button className="mt-4" onClick={reset}>
+            Восстановить рабочий стол
+          </Button>
+        </div>
+      </div>
+    );
+  }
+  if (!session) return <LoginScreen />;
+  if (session.kind === "admin") {
+    const admin = data.admins.find((item) => item.id === session.adminId);
+    return (
+      <div className="min-h-dvh md:grid md:grid-cols-[240px_1fr]">
+        <aside className="hidden md:flex md:min-h-dvh md:flex-col md:bg-sidebar md:text-sidebar-foreground">
+          <div className="border-b border-sidebar-border px-4 py-4">
+            <p className="text-[11px] font-medium tracking-[0.18em] text-[oklch(0.78_0.05_75)] uppercase">Теплогранд</p>
+            <p className="mt-1 text-lg font-semibold leading-tight">Продажи</p>
+            <p className="mt-1 text-xs text-sidebar-foreground/70">{COMPANY.line}</p>
+          </div>
+          <div className="p-3">
+            <div className="rounded-xl bg-sidebar-accent p-3">
+              <p className="text-[11px] font-medium tracking-[0.14em] text-sidebar-foreground/65 uppercase">Администратор</p>
+              <p className="truncate text-sm font-semibold">{admin?.name ?? "Администратор"}</p>
+              <Button type="button" variant="secondary" className="mt-3 h-8 w-full" onClick={logout}>
+                Выйти
+              </Button>
+            </div>
+          </div>
+        </aside>
+        <div className="flex min-h-dvh flex-col">
+          <header className="flex items-center justify-between border-b px-4 py-3 md:hidden">
+            <div>
+              <p className="text-[11px] font-medium tracking-[0.16em] text-[oklch(0.48_0.06_55)] uppercase">Теплогранд</p>
+              <p className="text-sm font-semibold">{admin?.name ?? "Администратор"}</p>
+            </div>
+            <Button type="button" variant="outline" onClick={logout}>
+              Выйти
+            </Button>
+          </header>
+          <main className="flex-1 px-4 py-5 md:px-8 md:py-8">
+            <AdminScreen />
+          </main>
+        </div>
+      </div>
+    );
+  }
+  return <SellerShell>{children}</SellerShell>;
+}
+
+function SellerShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const links = [...PRIMARY, ...MORE];
 
@@ -51,7 +119,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <p className="mt-1 text-xs text-sidebar-foreground/70">{COMPANY.line}</p>
         </div>
         <div className="px-3 pt-3">
-          <SellerSwitch tone="sidebar" />
+          <AccountPanel tone="sidebar" />
         </div>
         <nav className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto p-3" aria-label="Разделы">
           {links.map((item) => {
@@ -95,7 +163,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 <SheetTitle className="text-sidebar-foreground">Разделы</SheetTitle>
               </SheetHeader>
               <div className="px-4 pb-3">
-                <SellerSwitch tone="sidebar" />
+                <AccountPanel tone="sidebar" />
               </div>
               <nav className="flex flex-col gap-1 px-4" aria-label="Разделы">
                 {links.map((item) => (
@@ -108,7 +176,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </Sheet>
           </div>
           <div className="mt-3">
-            <SellerSwitch />
+            <AccountPanel />
           </div>
         </header>
 

@@ -1,3 +1,4 @@
+import { SEED_ADMIN, SEED_SELLER_LOGINS } from "@/lib/auth";
 import { buildLine, offerTotal } from "@/lib/pricing";
 import { productById } from "@/lib/products";
 import type { CrmData, DiscountId, LeadPhone, PriceMode, Product } from "@/lib/types";
@@ -335,6 +336,8 @@ export function createSeed(): CrmData {
         role: "Ключевые клиенты",
         city: "Москва",
         phone: "+7 495 120-10-01",
+        login: SEED_SELLER_LOGINS["s-marina"].login,
+        passwordHash: SEED_SELLER_LOGINS["s-marina"].passwordHash,
         demo: true,
       },
       {
@@ -343,6 +346,8 @@ export function createSeed(): CrmData {
         role: "Регионы",
         city: "Казань",
         phone: "+7 843 200-10-02",
+        login: SEED_SELLER_LOGINS["s-artem"].login,
+        passwordHash: SEED_SELLER_LOGINS["s-artem"].passwordHash,
         demo: true,
       },
       {
@@ -351,9 +356,12 @@ export function createSeed(): CrmData {
         role: "Частные заказы",
         city: "Москва",
         phone: "+7 495 120-10-03",
+        login: SEED_SELLER_LOGINS["s-kira"].login,
+        passwordHash: SEED_SELLER_LOGINS["s-kira"].passwordHash,
         demo: true,
       },
     ],
+    admins: [{ ...SEED_ADMIN }],
     leads: [
       {
         id: "lead-sergey",

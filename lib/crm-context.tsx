@@ -2,12 +2,14 @@
 
 import { createContext, useContext, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { toast } from "sonner";
+import { hashPassword, normalizeLogin, SEED_SELLER_LOGINS } from "@/lib/auth";
 import { callbackStampOrNull, todayIso, uid } from "@/lib/format";
 import { quoteProduct } from "@/lib/pricing";
 import { productById } from "@/lib/products";
 import { createSeed } from "@/lib/seed";
 import { leadGroupFromUnknown } from "@/lib/labels";
 import type {
+  AdminAccount,
   Company,
   Contact,
   CrmData,
@@ -22,14 +24,15 @@ import type {
   OfferLine,
   PriceMode,
   Segment,
+  Seller,
   SellerNote,
+  Session,
   Task,
   TaskKind,
 } from "@/lib/types";
 
 const STORAGE_KEY = "telpcrm.v2";
 const LEGACY_KEY = "telpcrm.v1";
-const DEFAULT_SELLER = "s-marina";
 
 const EMPTY: CrmData = {
   companies: [],
@@ -38,6 +41,7 @@ const EMPTY: CrmData = {
   offers: [],
   tasks: [],
   sellers: [],
+  admins: [],
   leads: [],
   sellerNotes: [],
   leadCalls: [],
@@ -48,11 +52,11 @@ type Status = "loading" | "ready" | "error";
 type Snapshot = {
   status: Status;
   error: string | null;
-  sellerId: string;
+  session: Session | null;
   data: CrmData;
 };
 
-const SERVER_SNAPSHOT: Snapshot = { status: "loading", error: null, sellerId: "", data: EMPTY };
+const SERVER_SNAPSHOT: Snapshot = { status: "loading", error: null, session: null, data: EMPTY };
 
 let clientSnapshot: Snapshot | null = null;
 const listeners = new Set<() => void>();
@@ -138,6 +142,36 @@ function normalizeTask(raw: unknown): Task | null {
   };
 }
 
+function normalizeSeller(raw: unknown): Seller | null {
+  if (!raw || typeof raw !== "object") return null;
+  const seller = raw as Partial<Seller>;
+  if (typeof seller.id !== "string" || typeof seller.name !== "string") return null;
+  const seeded = SEED_SELLER_LOGINS[seller.id];
+  const login = typeof seller.login === "string" && seller.login.trim() ? normalizeLogin(seller.login) : seeded?.login ?? "";
+  const passwordHash = typeof seller.passwordHash === "string" && seller.passwordHash ? seller.passwordHash : seeded?.passwordHash ?? "";
+  if (!login || !passwordHash) return null;
+  return {
+    id: seller.id,
+    name: seller.name,
+    role: typeof seller.role === "string" ? seller.role : "Продавец",
+    city: typeof seller.city === "string" ? seller.city : "",
+    phone: typeof seller.phone === "string" ? seller.phone : "",
+    login,
+    passwordHash,
+    demo: Boolean(seller.demo),
+  };
+}
+
+function normalizeAdmin(raw: unknown): AdminAccount | null {
+  if (!raw || typeof raw !== "object") return null;
+  const admin = raw as Partial<AdminAccount>;
+  if (typeof admin.id !== "string" || typeof admin.name !== "string") return null;
+  const login = typeof admin.login === "string" ? normalizeLogin(admin.login) : "";
+  const passwordHash = typeof admin.passwordHash === "string" ? admin.passwordHash : "";
+  if (!login || !passwordHash) return null;
+  return { id: admin.id, name: admin.name, login, passwordHash };
+}
+
 function stripDemoArticles(offers: Offer[]) {
   return offers.map((offer) => ({
     ...offer,
@@ -148,6 +182,12 @@ function stripDemoArticles(offers: Offer[]) {
       return { ...line, article };
     }),
   }));
+}
+
+function keptOrSeed<T>(raw: unknown, normalize: (value: unknown) => T | null, seed: T[]): T[] {
+  if (!Array.isArray(raw)) return seed;
+  const items = raw.map(normalize).filter((item): item is T => item !== null);
+  return items.length ? items : seed;
 }
 
 function backfill(partial: Partial<CrmData>): CrmData {
@@ -167,7 +207,8 @@ function backfill(partial: Partial<CrmData>): CrmData {
     deals: asArray(partial.deals, seed.deals),
     offers: stripDemoArticles(asArray(partial.offers, seed.offers)),
     tasks: Array.isArray(partial.tasks) ? partial.tasks.map(normalizeTask).filter((task): task is Task => task !== null) : seed.tasks,
-    sellers: asArray(partial.sellers, []).length ? asArray(partial.sellers, seed.sellers) : seed.sellers,
+    sellers: keptOrSeed(partial.sellers, normalizeSeller, seed.sellers),
+    admins: keptOrSeed(partial.admins, normalizeAdmin, seed.admins),
     leads,
     sellerNotes: asArray(partial.sellerNotes, seed.sellerNotes),
     leadCalls: Array.isArray(partial.leadCalls)
@@ -176,21 +217,28 @@ function backfill(partial: Partial<CrmData>): CrmData {
   };
 }
 
-function sellerOrDefault(data: CrmData, sellerId: unknown) {
-  if (typeof sellerId === "string" && data.sellers.some((seller) => seller.id === sellerId)) return sellerId;
-  return data.sellers.find((seller) => seller.id === DEFAULT_SELLER)?.id ?? data.sellers[0]?.id ?? "";
+function parseSession(data: CrmData, value: unknown): Session | null {
+  if (!value || typeof value !== "object") return null;
+  const record = value as { kind?: unknown; adminId?: unknown; sellerId?: unknown };
+  if (record.kind === "admin" && typeof record.adminId === "string" && data.admins.some((admin) => admin.id === record.adminId)) {
+    return { kind: "admin", adminId: record.adminId };
+  }
+  if (record.kind === "seller" && typeof record.sellerId === "string" && data.sellers.some((seller) => seller.id === record.sellerId)) {
+    return { kind: "seller", sellerId: record.sellerId };
+  }
+  return null;
 }
 
-function parseStored(value: unknown): { data: CrmData; sellerId: string } | null {
+function parseStored(value: unknown): { data: CrmData; session: Session | null } | null {
   if (!value || typeof value !== "object") return null;
   const record = value as Record<string, unknown>;
   if (record.data && typeof record.data === "object") {
     const data = backfill(record.data as Partial<CrmData>);
-    return { data, sellerId: sellerOrDefault(data, record.sellerId) };
+    return { data, session: parseSession(data, record.session) };
   }
   if (Array.isArray(record.companies)) {
     const data = backfill(record as Partial<CrmData>);
-    return { data, sellerId: sellerOrDefault(data, DEFAULT_SELLER) };
+    return { data, session: null };
   }
   return null;
 }
@@ -198,7 +246,7 @@ function parseStored(value: unknown): { data: CrmData; sellerId: string } | null
 function publish(next: Snapshot) {
   clientSnapshot = next;
   if (next.status === "ready") {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ sellerId: next.sellerId, data: next.data }));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ session: next.session, data: next.data }));
   }
   listeners.forEach((listener) => listener());
 }
@@ -209,19 +257,19 @@ function readClient(): Snapshot {
     const raw = localStorage.getItem(STORAGE_KEY) ?? localStorage.getItem(LEGACY_KEY);
     if (!raw) {
       const data = createSeed();
-      clientSnapshot = { status: "ready", error: null, sellerId: DEFAULT_SELLER, data };
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ sellerId: DEFAULT_SELLER, data }));
+      clientSnapshot = { status: "ready", error: null, session: null, data };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ session: null, data }));
     } else {
       const stored = parseStored(JSON.parse(raw) as unknown);
       if (!stored) throw new Error("Сохранённые данные отдела повреждены.");
-      clientSnapshot = { status: "ready", error: null, sellerId: stored.sellerId, data: stored.data };
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ sellerId: stored.sellerId, data: stored.data }));
+      clientSnapshot = { status: "ready", error: null, session: stored.session, data: stored.data };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ session: stored.session, data: stored.data }));
     }
   } catch (caught) {
     clientSnapshot = {
       status: "error",
       error: caught instanceof Error ? caught.message : "Не удалось открыть данные отдела.",
-      sellerId: "",
+      session: null,
       data: EMPTY,
     };
   }
@@ -242,7 +290,12 @@ function mutate(recipe: (draft: CrmData) => void) {
   if (current.status !== "ready") return;
   const next = structuredClone(current.data);
   recipe(next);
-  publish({ status: "ready", error: null, sellerId: current.sellerId, data: next });
+  publish({ status: "ready", error: null, session: current.session, data: next });
+}
+
+function currentSellerId() {
+  const session = readClient().session;
+  return session?.kind === "seller" ? session.sellerId : "";
 }
 
 function nextOfferNumber(offers: Offer[]) {
@@ -271,10 +324,13 @@ function reprice(line: OfferLine, discountId: DiscountId): OfferLine {
 type CrmApi = {
   status: Status;
   error: string | null;
+  session: Session | null;
   sellerId: string;
   data: CrmData;
   reset: () => void;
-  switchSeller: (id: string) => void;
+  login: (login: string, password: string) => Promise<"ok" | "invalid">;
+  logout: () => void;
+  addSeller: (input: { name: string; login: string; password: string }) => Promise<{ ok: true } | { ok: false; error: string }>;
   addLead: (input: Omit<Lead, "id" | "sellerId" | "demo" | "createdAt"> & { note?: string }) => string;
   setLeadGroup: (id: string, group: LeadGroup) => void;
   updateLead: (
@@ -312,7 +368,7 @@ export function CrmProvider({ children }: { children: React.ReactNode }) {
   const [hydrated, setHydrated] = useState(false);
   useEffect(() => {
     // The server snapshot stays on "loading" until the browser can read localStorage.
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- hydrate the demo CRM after mount
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- hydrate stored accounts after mount
     setHydrated(true);
   }, []);
   const snapshot = hydrated ? stored : SERVER_SNAPSHOT;
@@ -321,22 +377,68 @@ export function CrmProvider({ children }: { children: React.ReactNode }) {
     return {
       status: snapshot.status,
       error: snapshot.error,
-      sellerId: snapshot.sellerId,
+      session: snapshot.session,
+      sellerId: snapshot.session?.kind === "seller" ? snapshot.session.sellerId : "",
       data: snapshot.data,
       reset: () => {
         const data = createSeed();
-        publish({ status: "ready", error: null, sellerId: DEFAULT_SELLER, data });
+        publish({ status: "ready", error: null, session: null, data });
         toast.success("Рабочий стол восстановлен");
       },
-      switchSeller: (id) => {
+      login: async (loginName, password) => {
         const current = readClient();
-        const seller = current.data.sellers.find((item) => item.id === id);
-        if (!seller || current.sellerId === id) return;
-        publish({ ...current, sellerId: id });
-        toast.success(`Вы за столом: ${seller.name}`);
+        if (current.status !== "ready") return "invalid";
+        const login = normalizeLogin(loginName);
+        if (!login || !password) return "invalid";
+        const passwordHash = await hashPassword(password);
+        const admin = current.data.admins.find((item) => item.login === login && item.passwordHash === passwordHash);
+        if (admin) {
+          publish({ ...readClient(), session: { kind: "admin", adminId: admin.id } });
+          return "ok";
+        }
+        const seller = current.data.sellers.find((item) => item.login === login && item.passwordHash === passwordHash);
+        if (seller) {
+          publish({ ...readClient(), session: { kind: "seller", sellerId: seller.id } });
+          return "ok";
+        }
+        return "invalid";
+      },
+      logout: () => {
+        const current = readClient();
+        if (current.status !== "ready" || !current.session) return;
+        publish({ ...current, session: null });
+      },
+      addSeller: async (input) => {
+        const name = input.name.trim();
+        const login = normalizeLogin(input.login);
+        const password = input.password;
+        if (!name || !login || !password) return { ok: false, error: "Укажите имя, логин и пароль." };
+        if (password.length < 6) return { ok: false, error: "Пароль должен быть не короче 6 знаков." };
+        const current = readClient();
+        if (current.status !== "ready" || current.session?.kind !== "admin") {
+          return { ok: false, error: "Добавлять продавцов может администратор." };
+        }
+        const taken = current.data.admins.some((item) => item.login === login) || current.data.sellers.some((item) => item.login === login);
+        if (taken) return { ok: false, error: "Такой логин уже есть." };
+        const passwordHash = await hashPassword(password);
+        mutate((draft) => {
+          draft.sellers.push({
+            id: uid("s"),
+            name,
+            role: "Продавец",
+            city: "",
+            phone: "",
+            login,
+            passwordHash,
+            demo: false,
+          });
+        });
+        toast.success("Продавец может войти под своим логином");
+        return { ok: true };
       },
       addLead: (input) => {
-        const sellerId = readClient().sellerId;
+        const sellerId = currentSellerId();
+        if (!sellerId) return "";
         const id = uid("lead");
         const note = input.note?.trim() ?? "";
         mutate((draft) => {
@@ -371,7 +473,7 @@ export function CrmProvider({ children }: { children: React.ReactNode }) {
         return id;
       },
       setLeadGroup: (id, group) => {
-        const sellerId = readClient().sellerId;
+        const sellerId = currentSellerId();
         mutate((draft) => {
           const lead = draft.leads.find((item) => item.id === id && item.sellerId === sellerId);
           if (!lead || lead.group === group) return;
@@ -379,7 +481,7 @@ export function CrmProvider({ children }: { children: React.ReactNode }) {
         });
       },
       updateLead: (id, patch) => {
-        const sellerId = readClient().sellerId;
+        const sellerId = currentSellerId();
         const current = readClient().data.leads.find((item) => item.id === id && item.sellerId === sellerId);
         if (!current) return;
         const next = { ...current, ...patch };
@@ -391,7 +493,7 @@ export function CrmProvider({ children }: { children: React.ReactNode }) {
         });
       },
       addSellerNote: (leadId, text) => {
-        const sellerId = readClient().sellerId;
+        const sellerId = currentSellerId();
         const clean = text.trim();
         if (!clean) return;
         const current = readClient();
@@ -410,7 +512,7 @@ export function CrmProvider({ children }: { children: React.ReactNode }) {
         toast.success("Заметка видна только вам");
       },
       addLeadCall: (leadId, input) => {
-        const sellerId = readClient().sellerId;
+        const sellerId = currentSellerId();
         const calledAt = callbackStampOrNull(input.calledAt);
         const note = input.note.trim();
         if (!calledAt || !note) return;

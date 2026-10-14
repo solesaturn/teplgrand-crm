@@ -141,8 +141,21 @@ export type Seller = {
   role: string;
   city: string;
   phone: string;
+  login: string;
+  passwordHash: string;
   demo: boolean;
 };
+
+export type AdminAccount = {
+  id: string;
+  name: string;
+  login: string;
+  passwordHash: string;
+};
+
+export type Session =
+  | { kind: "admin"; adminId: string }
+  | { kind: "seller"; sellerId: string };
 
 export type LeadPhone = {
   id: string;
@@ -192,6 +205,7 @@ export type CrmData = {
   offers: Offer[];
   tasks: Task[];
   sellers: Seller[];
+  admins: AdminAccount[];
   leads: Lead[];
   sellerNotes: SellerNote[];
   leadCalls: LeadCall[];

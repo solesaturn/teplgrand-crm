@@ -74,7 +74,7 @@ function todayCallsOf(leads: Lead[], now = new Date()) {
 
 function Leads() {
   const { data, sellerId, setLeadGroup, updateLead } = useCrm();
-  const seller = data.sellers.find((item) => item.id === sellerId) ?? data.sellers[0];
+  const seller = data.sellers.find((item) => item.id === sellerId) ?? null;
   const [query, setQuery] = useState("");
   const [picked, setPicked] = useState<string | null>(null);
   const [dragging, setDragging] = useState<string | null>(null);
@@ -82,7 +82,7 @@ function Leads() {
   const [pending, setPending] = useState<{ leadId: string; date: string; time: string } | null>(null);
   const needle = norm(query);
 
-  const mine = useMemo(() => data.leads.filter((lead) => lead.sellerId === seller?.id), [data.leads, seller?.id]);
+  const mine = useMemo(() => data.leads.filter((lead) => lead.sellerId === sellerId), [data.leads, sellerId]);
   const shown = useMemo(() => mine.filter((lead) => matches(lead, needle)), [mine, needle]);
   const todayCalls = useMemo(() => todayCallsOf(shown), [shown]);
   const pickedLead = mine.find((lead) => lead.id === picked) ?? null;
