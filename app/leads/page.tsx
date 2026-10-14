@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dialog";
 import { BuyerLinks, PhoneList } from "@/components/lead-fields";
 import { LeadDialog } from "@/components/record-dialogs";
+import { ConfirmDelete } from "@/components/confirm-delete";
 import { ChoiceSelect, CrmGate, PageHeading } from "@/components/crm-ui";
 import { useCrm } from "@/lib/crm-context";
 import {
@@ -73,7 +74,7 @@ function todayCallsOf(leads: Lead[], now = new Date()) {
 }
 
 function Leads() {
-  const { data, session, sellerId, setLeadGroup, updateLead } = useCrm();
+  const { data, session, sellerId, setLeadGroup, updateLead, removeLead } = useCrm();
   const isAdmin = session?.kind === "admin";
   const seller = data.sellers.find((item) => item.id === sellerId) ?? null;
   const [query, setQuery] = useState("");
@@ -81,6 +82,8 @@ function Leads() {
   const [dragging, setDragging] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState<{ leadId: string; date: string; time: string } | null>(null);
+  const [confirmLead, setConfirmLead] = useState(false);
+  const [deletingLead, setDeletingLead] = useState(false);
   const needle = norm(query);
   const sellerName = (id: string) => data.sellers.find((item) => item.id === id)?.name ?? "";
 
@@ -278,6 +281,7 @@ function Leads() {
             onScheduleTime={(time) => setPending((current) => (current ? { ...current, time } : current))}
             onScheduleConfirm={confirmPending}
             onScheduleCancel={() => setPending(null)}
+            onAskDelete={isAdmin ? () => setConfirmLead(true) : undefined}
           />
         ) : null}
       </Dialog>
@@ -303,6 +307,25 @@ function Leads() {
           </DialogContent>
         ) : null}
       </Dialog>
+
+      <ConfirmDelete
+        open={confirmLead && pickedLead !== null}
+        title={pickedLead ? `Удалить ${pickedLead.name}?` : "Удалить лид?"}
+        description="Телефоны, ссылки, задачи, заметки и история звонков этого лида исчезнут."
+        pending={deletingLead}
+        onCancel={() => setConfirmLead(false)}
+        onConfirm={() => {
+          if (!pickedLead) return;
+          const id = pickedLead.id;
+          setDeletingLead(true);
+          void removeLead(id).then((ok) => {
+            setDeletingLead(false);
+            if (!ok) return;
+            setConfirmLead(false);
+            setPicked(null);
+          });
+        }}
+      />
 
       <LeadDialog
         open={open}
@@ -396,6 +419,7 @@ function LeadOverlay({
   onScheduleTime,
   onScheduleConfirm,
   onScheduleCancel,
+  onAskDelete,
 }: {
   lead: Lead;
   sellerId: string;
@@ -406,6 +430,7 @@ function LeadOverlay({
   onScheduleTime: (value: string) => void;
   onScheduleConfirm: () => void;
   onScheduleCancel: () => void;
+  onAskDelete?: () => void;
 }) {
   const { data, session, updateLead, addSellerNote, addLeadCall, addTask } = useCrm();
   const adminView = session?.kind === "admin";
@@ -448,6 +473,11 @@ function LeadOverlay({
             : `Поверх списка. Поля сохраняются сами. Заметку видит только ${sellerName}.`}
         </DialogDescription>
       </DialogHeader>
+      {onAskDelete ? (
+        <Button type="button" variant="outline" aria-label={`Удалить лид ${lead.name}`} onClick={onAskDelete}>
+          Удалить лид
+        </Button>
+      ) : null}
       <div className="grid max-h-[75vh] gap-4 overflow-y-auto pr-1 lg:grid-cols-2">
         <div className="space-y-3">
           <label className="block space-y-1 text-sm">

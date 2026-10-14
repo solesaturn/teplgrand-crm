@@ -427,6 +427,20 @@ function mutate(recipe: (draft: CrmData) => void) {
   scheduleSave();
 }
 
+async function adminDelete(path: string, success: string) {
+  const current = readClient();
+  if (current.status !== "ready" || current.session?.kind !== "admin") return false;
+  const response = await fetch(path, { method: "DELETE", cache: "no-store" });
+  const body = await readJson(response);
+  if (!response.ok || !body) {
+    toast.error(body?.error ?? "Не удалось удалить.");
+    return false;
+  }
+  applyPayload(current.session, body);
+  toast.success(success);
+  return true;
+}
+
 function currentSellerId() {
   const session = readClient().session;
   return session?.kind === "seller" ? session.sellerId : "";
@@ -466,6 +480,9 @@ type CrmApi = {
   logout: () => void;
   addSeller: (input: { name: string; login: string; password: string }) => Promise<{ ok: true } | { ok: false; error: string }>;
   removeSeller: (id: string) => void;
+  removeLead: (id: string) => Promise<boolean>;
+  removeOffer: (id: string) => Promise<boolean>;
+  removeTask: (id: string) => Promise<boolean>;
   addLead: (input: Omit<Lead, "id" | "sellerId" | "demo" | "createdAt"> & { note?: string }) => string;
   setLeadGroup: (id: string, group: LeadGroup) => void;
   updateLead: (
@@ -573,6 +590,9 @@ export function CrmProvider({ children }: { children: React.ReactNode }) {
           toast.success("Продавец удалён. Войти он больше не сможет.");
         })();
       },
+      removeLead: (id) => adminDelete(`/api/leads/${encodeURIComponent(id)}`, "Лид удалён"),
+      removeOffer: (id) => adminDelete(`/api/offers/${encodeURIComponent(id)}`, "Предложение удалено"),
+      removeTask: (id) => adminDelete(`/api/tasks/${encodeURIComponent(id)}`, "Задача удалена"),
       addLead: (input) => {
         const sellerId = currentSellerId();
         if (!sellerId) return "";

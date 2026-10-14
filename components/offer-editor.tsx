@@ -2,7 +2,9 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { ConfirmDelete } from "@/components/confirm-delete";
 import {
   Dialog,
   DialogContent,
@@ -31,8 +33,11 @@ const PRICE_MODES: { value: PriceMode; label: string }[] = [
 ];
 
 export function OfferEditor({ offer }: { offer: Offer }) {
-  const { data, updateOffer, addOfferLine, updateOfferLine, removeOfferLine } = useCrm();
+  const router = useRouter();
+  const { data, session, updateOffer, addOfferLine, updateOfferLine, removeOfferLine, removeOffer } = useCrm();
   const [picker, setPicker] = useState(false);
+  const [confirm, setConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const company = data.companies.find((item) => item.id === offer.companyId);
   const contact = data.contacts.find((item) => item.id === offer.contactId);
   const deal = data.deals.find((item) => item.id === offer.dealId);
@@ -73,6 +78,11 @@ export function OfferEditor({ offer }: { offer: Offer }) {
       <div className="no-print flex flex-wrap gap-2">
         <Button type="button" onClick={() => setPicker(true)}>Добавить из каталога</Button>
         <Button type="button" variant="outline" onClick={() => window.print()}>Печать</Button>
+        {session?.kind === "admin" ? (
+          <Button type="button" variant="outline" aria-label={`Удалить ${offer.number}`} onClick={() => setConfirm(true)}>
+            Удалить КП
+          </Button>
+        ) : null}
         {deal ? (
           <Button variant="outline" nativeButton={false} render={<Link href={`/deals/${deal.id}`} />}>
             Сделка
@@ -230,6 +240,22 @@ export function OfferEditor({ offer }: { offer: Offer }) {
           />
         </DialogContent>
       </Dialog>
+      <ConfirmDelete
+        open={confirm}
+        title={`Удалить ${offer.number}?`}
+        description="Это коммерческое предложение исчезнет из списка. Сделка и покупатель останутся."
+        pending={deleting}
+        onCancel={() => setConfirm(false)}
+        onConfirm={() => {
+          setDeleting(true);
+          void removeOffer(offer.id).then((ok) => {
+            setDeleting(false);
+            if (!ok) return;
+            setConfirm(false);
+            router.push("/offers");
+          });
+        }}
+      />
     </div>
   );
 }

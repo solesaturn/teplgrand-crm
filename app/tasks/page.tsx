@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ConfirmDelete } from "@/components/confirm-delete";
 import { TaskDialog } from "@/components/record-dialogs";
 import { CrmGate, EmptyState, PageHeading } from "@/components/crm-ui";
 import { useCrm } from "@/lib/crm-context";
@@ -21,10 +22,14 @@ export default function TasksPage() {
 }
 
 function Tasks() {
-  const { data, toggleTask } = useCrm();
+  const { data, session, toggleTask, removeTask } = useCrm();
+  const isAdmin = session?.kind === "admin";
   const [filter, setFilter] = useState<Filter>("open");
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
+  const [confirming, setConfirming] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const confirmingTask = data.tasks.find((task) => task.id === confirming) ?? null;
   const today = todayIso();
   const needle = norm(query);
 
@@ -87,7 +92,7 @@ function Tasks() {
                   aria-label={task.done ? "Вернуть в работу" : "Отметить выполненным"}
                   onChange={() => toggleTask(task.id)}
                 />
-                <div className="min-w-0">
+                <div className="min-w-0 flex-1">
                   <p className={task.done ? "text-sm text-muted-foreground line-through" : "text-sm font-medium"}>{task.title}</p>
                   <p className="text-xs text-muted-foreground">
                     {TASK_KIND[task.kind]} · {formatDate(task.due)}
@@ -97,12 +102,34 @@ function Tasks() {
                     {lead ? ` · лид ${lead.name}` : ""}
                   </p>
                 </div>
+                {isAdmin ? (
+                  <Button type="button" variant="outline" size="sm" aria-label={`Удалить задачу ${task.title}`} onClick={() => setConfirming(task.id)}>
+                    Удалить
+                  </Button>
+                ) : null}
               </li>
             );
           })}
         </ul>
       )}
       <TaskDialog open={open} onOpenChange={setOpen} />
+      <ConfirmDelete
+        open={confirmingTask !== null}
+        title={confirmingTask ? `Удалить «${confirmingTask.title}»?` : "Удалить задачу?"}
+        description="Задача исчезнет из списка. Лид и компания останутся."
+        pending={deleting}
+        onCancel={() => setConfirming(null)}
+        onConfirm={() => {
+          if (!confirmingTask) return;
+          const id = confirmingTask.id;
+          setDeleting(true);
+          void removeTask(id).then((ok) => {
+            setDeleting(false);
+            if (!ok) return;
+            setConfirming(null);
+          });
+        }}
+      />
     </div>
   );
 }

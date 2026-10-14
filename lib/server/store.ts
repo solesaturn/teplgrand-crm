@@ -355,6 +355,45 @@ export async function deleteSeller(id: string) {
   return { ok: !missing, data };
 }
 
+export async function deleteLead(id: string) {
+  let missing = false;
+  const data = await updateData((draft) => {
+    if (!draft.leads.some((lead) => lead.id === id)) {
+      missing = true;
+      return;
+    }
+    draft.leads = draft.leads.filter((lead) => lead.id !== id);
+    draft.sellerNotes = draft.sellerNotes.filter((note) => note.leadId !== id);
+    draft.leadCalls = draft.leadCalls.filter((call) => call.leadId !== id);
+    draft.tasks = draft.tasks.filter((task) => task.leadId !== id);
+  });
+  return { ok: !missing, data };
+}
+
+export async function deleteOffer(id: string) {
+  let missing = false;
+  const data = await updateData((draft) => {
+    if (!draft.offers.some((offer) => offer.id === id)) {
+      missing = true;
+      return;
+    }
+    draft.offers = draft.offers.filter((offer) => offer.id !== id);
+  });
+  return { ok: !missing, data };
+}
+
+export async function deleteTask(id: string) {
+  let missing = false;
+  const data = await updateData((draft) => {
+    if (!draft.tasks.some((task) => task.id === id)) {
+      missing = true;
+      return;
+    }
+    draft.tasks = draft.tasks.filter((task) => task.id !== id);
+  });
+  return { ok: !missing, data };
+}
+
 export async function saveSellerDesk(sellerId: string, body: unknown) {
   return updateData((draft) => {
     const next = mergeSellerDesk(draft, body, sellerId);
