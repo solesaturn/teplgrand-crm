@@ -13,7 +13,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { CatalogBrowser } from "@/components/catalog-browser";
-import { ChoiceSelect, DemoBadge, EmptyState, Money } from "@/components/crm-ui";
+import { ChoiceSelect, EmptyState, Money } from "@/components/crm-ui";
 import { useCrm } from "@/lib/crm-context";
 import { formatDate } from "@/lib/format";
 import { OFFER_STATUS } from "@/lib/labels";
@@ -38,7 +38,6 @@ export function OfferEditor({ offer }: { offer: Offer }) {
   const deal = data.deals.find((item) => item.id === offer.dealId);
   const total = offerTotal(offer.lines);
   const discount = discountById(offer.discountId);
-  const hasDemo = offer.lines.some((line) => line.priceOrigin === "demo-snapshot");
   const missing = offer.lines.some((line) => line.unitPrice == null);
 
   return (
@@ -49,7 +48,6 @@ export function OfferEditor({ offer }: { offer: Offer }) {
           <h1 className="text-2xl font-semibold">{offer.number}</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             {company ? <Link href={`/clients/${company.id}`} className="font-medium text-foreground hover:underline">{company.name}</Link> : "Покупатель удалён"}
-            {company?.demo ? <span className="ml-2"><DemoBadge /></span> : null}
             {" · "}
             {formatDate(offer.issuedOn)}
           </p>
@@ -108,7 +106,6 @@ export function OfferEditor({ offer }: { offer: Offer }) {
                     <p className="font-mono text-xs text-muted-foreground">{line.article}</p>
                     <p className="font-medium">{line.name}</p>
                     <p className="text-xs text-muted-foreground">{line.priceLabel} · {line.unit}</p>
-                    {line.priceOrigin === "demo-snapshot" ? <span className="mt-1 inline-block"><DemoBadge /></span> : null}
                   </td>
                   <td className="px-3 py-3">
                     <Input
@@ -211,7 +208,6 @@ export function OfferEditor({ offer }: { offer: Offer }) {
         </table>
         <p className="mt-4 text-right text-base font-semibold">Итого: <Money value={total} /></p>
         {missing ? <p className="mt-2 text-sm text-neutral-600">Часть позиций без цены: в политике нет ставки, а колонка прайса не выбрана.</p> : null}
-        {hasDemo ? <p className="mt-2 text-sm text-neutral-600">Есть учебные цены. Перед отправкой сверьте их с прайсом каталога продавца.</p> : null}
         {offer.note ? <p className="mt-3 text-sm text-neutral-700">{offer.note}</p> : null}
         <p className="mt-6 text-sm">
           С уважением,<br />

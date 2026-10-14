@@ -138,6 +138,18 @@ function normalizeTask(raw: unknown): Task | null {
   };
 }
 
+function stripDemoArticles(offers: Offer[]) {
+  return offers.map((offer) => ({
+    ...offer,
+    lines: offer.lines.map((line) => {
+      if (!line.article.includes("DEMO")) return line;
+      const product = productById(line.productId);
+      const article = product?.article ?? line.article.replaceAll("DEMO-", "");
+      return { ...line, article };
+    }),
+  }));
+}
+
 function backfill(partial: Partial<CrmData>): CrmData {
   const seed = createSeed();
   const storedLeads = Array.isArray(partial.leads)
@@ -153,7 +165,7 @@ function backfill(partial: Partial<CrmData>): CrmData {
     companies: asArray(partial.companies, seed.companies),
     contacts: asArray(partial.contacts, seed.contacts),
     deals: asArray(partial.deals, seed.deals),
-    offers: asArray(partial.offers, seed.offers),
+    offers: stripDemoArticles(asArray(partial.offers, seed.offers)),
     tasks: Array.isArray(partial.tasks) ? partial.tasks.map(normalizeTask).filter((task): task is Task => task !== null) : seed.tasks,
     sellers: asArray(partial.sellers, []).length ? asArray(partial.sellers, seed.sellers) : seed.sellers,
     leads,
@@ -201,14 +213,14 @@ function readClient(): Snapshot {
       localStorage.setItem(STORAGE_KEY, JSON.stringify({ sellerId: DEFAULT_SELLER, data }));
     } else {
       const stored = parseStored(JSON.parse(raw) as unknown);
-      if (!stored) throw new Error("Демо-данные в браузере повреждены.");
+      if (!stored) throw new Error("Сохранённые данные отдела повреждены.");
       clientSnapshot = { status: "ready", error: null, sellerId: stored.sellerId, data: stored.data };
       localStorage.setItem(STORAGE_KEY, JSON.stringify({ sellerId: stored.sellerId, data: stored.data }));
     }
   } catch (caught) {
     clientSnapshot = {
       status: "error",
-      error: caught instanceof Error ? caught.message : "Не удалось открыть демо-данные.",
+      error: caught instanceof Error ? caught.message : "Не удалось открыть данные отдела.",
       sellerId: "",
       data: EMPTY,
     };
@@ -314,7 +326,7 @@ export function CrmProvider({ children }: { children: React.ReactNode }) {
       reset: () => {
         const data = createSeed();
         publish({ status: "ready", error: null, sellerId: DEFAULT_SELLER, data });
-        toast.success("Демо-данные восстановлены");
+        toast.success("Рабочий стол восстановлен");
       },
       switchSeller: (id) => {
         const current = readClient();

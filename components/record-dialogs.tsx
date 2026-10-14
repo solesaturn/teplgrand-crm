@@ -62,7 +62,7 @@ function CompanyForm({ onClose }: { onClose: () => void }) {
     <DialogContent className="sm:max-w-lg!">
       <DialogHeader>
         <DialogTitle>Новая компания</DialogTitle>
-        <DialogDescription>Карточка попадёт в рабочий список. Учебные клиенты из демо помечены отдельно.</DialogDescription>
+        <DialogDescription>Карточка попадёт в рабочий список.</DialogDescription>
       </DialogHeader>
       <form
         className="grid gap-3"

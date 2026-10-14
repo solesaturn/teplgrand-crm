@@ -17,7 +17,6 @@ import { Button } from "@/components/ui/button";
 import { SellerSwitch } from "@/components/seller-switch";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { COMPANY } from "@/lib/policy";
-import { useCrm } from "@/lib/crm-context";
 import { cn } from "cn";
 
 const PRIMARY = [
@@ -41,7 +40,6 @@ function active(pathname: string, href: string) {
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const { reset, status } = useCrm();
   const links = [...PRIMARY, ...MORE];
 
   return (
@@ -78,9 +76,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <div className="border-t border-sidebar-border p-3 text-xs text-sidebar-foreground/70">
           <p>{COMPANY.name}</p>
           <p className="mt-1">ИНН {COMPANY.inn}</p>
-          <button type="button" className="mt-3 text-left text-[oklch(0.78_0.05_75)] hover:underline" onClick={reset} disabled={status === "loading"}>
-            Вернуть демо-данные
-          </button>
         </div>
       </aside>
 
@@ -116,10 +111,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <SellerSwitch />
           </div>
         </header>
-
-        <div className="no-print border-b bg-[oklch(0.32_0.045_46)] px-4 py-2 text-xs text-[oklch(0.96_0.01_85)]">
-          Учебный срез для согласования. Клиенты и учётки с пометкой «демо». На сайт каталога ничего не выкладывается.
-        </div>
 
         <main className="flex-1 px-4 py-5 pb-24 md:px-8 md:pb-10">{children}</main>
 

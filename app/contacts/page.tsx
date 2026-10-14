@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ContactDialog } from "@/components/record-dialogs";
-import { CrmGate, DemoBadge, EmptyState, PageHeading } from "@/components/crm-ui";
+import { CrmGate, EmptyState, PageHeading } from "@/components/crm-ui";
 import { useCrm } from "@/lib/crm-context";
 import { norm } from "@/lib/format";
 
@@ -51,7 +51,7 @@ function Contacts() {
             return (
               <li key={contact.id} className="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <p className="font-medium">{contact.name} {contact.demo ? <DemoBadge /> : null}</p>
+                  <p className="font-medium">{contact.name}</p>
                   <p className="text-sm text-muted-foreground">{contact.role || "без должности"} · {contact.phone || "без телефона"} · {contact.email || "без почты"}</p>
                 </div>
                 {company ? (

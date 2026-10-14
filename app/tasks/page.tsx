@@ -69,7 +69,7 @@ function Tasks() {
       {shown.length === 0 ? (
         <EmptyState
           title="В этой выборке пусто"
-          text={filter === "loose" ? "Все напоминания привязаны к компании. Так и задумано в демо." : "Смените фильтр или поставьте новое касание."}
+          text={filter === "loose" ? "Все напоминания уже привязаны к компании." : "Смените фильтр или поставьте новое касание."}
           action={<Button variant="outline" onClick={() => { setFilter("open"); setQuery(""); }}>Показать открытые</Button>}
         />
       ) : (

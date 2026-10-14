@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/dialog";
 import { BuyerLinks, PhoneList } from "@/components/lead-fields";
 import { LeadDialog } from "@/components/record-dialogs";
-import { ChoiceSelect, CrmGate, DemoBadge, PageHeading } from "@/components/crm-ui";
+import { ChoiceSelect, CrmGate, PageHeading } from "@/components/crm-ui";
 import { useCrm } from "@/lib/crm-context";
 import {
   callbackDue,
@@ -212,9 +212,8 @@ function Leads() {
                             </p>
                           ) : null}
                         </button>
-                        <div className="mt-2 flex items-center justify-between gap-2">
-                          {lead.demo ? <DemoBadge /> : <span />}
-                          <label className="min-w-0 flex-1">
+                        <div className="mt-2">
+                          <label className="block">
                             <span className="sr-only">Группа для {lead.name}</span>
                             <select
                               className="h-7 w-full rounded-md border bg-background px-1 text-xs"
@@ -426,7 +425,6 @@ function LeadOverlay({
         <DialogTitle>Карточка лида</DialogTitle>
         <DialogDescription>
           Поверх списка. Поля сохраняются сами. Заметку видит только {sellerName}.
-          {lead.demo ? " Учебный лид." : ""}
         </DialogDescription>
       </DialogHeader>
       <div className="grid max-h-[75vh] gap-4 overflow-y-auto pr-1 lg:grid-cols-2">

@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { OfferDialog } from "@/components/record-dialogs";
-import { CrmGate, DemoBadge, EmptyState, Money, PageHeading } from "@/components/crm-ui";
+import { CrmGate, EmptyState, Money, PageHeading } from "@/components/crm-ui";
 import { useCrm } from "@/lib/crm-context";
 import { formatDate } from "@/lib/format";
 import { OFFER_STATUS } from "@/lib/labels";
@@ -67,7 +67,6 @@ function Offers() {
                     <span className="mt-0.5 block text-sm text-muted-foreground">
                       {company?.name} · {OFFER_STATUS[offer.status]} · {discountById(offer.discountId).shortLabel} · {formatDate(offer.issuedOn)}
                     </span>
-                    {company?.demo ? <span className="mt-1 inline-block"><DemoBadge /></span> : null}
                   </span>
                   <Money value={offerTotal(offer.lines)} className="font-medium tabular-nums" />
                 </Link>

@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { DemoBadge, EmptyState, Money } from "@/components/crm-ui";
+import { EmptyState, Money } from "@/components/crm-ui";
 import { norm } from "@/lib/format";
 import { CATEGORIES, policyPrice } from "@/lib/policy";
 import { PRODUCTS } from "@/lib/products";
@@ -82,7 +82,7 @@ export function CatalogBrowser({
                   <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                     <span className="font-mono">{product.article}</span>
                     <span>{product.category}</span>
-                    {product.priceOrigin === "demo-snapshot" ? <DemoBadge /> : <span>Розница открытого источника</span>}
+                    {product.priceOrigin === "public-retail" ? <span>Розница открытого источника</span> : null}
                   </div>
                   <p className="mt-1 text-sm font-medium text-balance">{product.name}</p>
                   <p className="mt-1 text-xs text-muted-foreground">

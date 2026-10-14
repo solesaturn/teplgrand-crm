@@ -17,7 +17,7 @@ export function CrmGate({ children }: { children: React.ReactNode }) {
         <h1 className="mt-2 text-xl font-semibold">Данные отдела не открылись</h1>
         <p className="mt-2 text-sm text-muted-foreground">{error ?? "Локальная копия повреждена."}</p>
         <Button className="mt-4" onClick={reset}>
-          Вернуть демо-данные
+          Восстановить рабочий стол
         </Button>
       </div>
     );
@@ -80,14 +80,6 @@ export function PageHeading({
       </div>
       {action}
     </div>
-  );
-}
-
-export function DemoBadge() {
-  return (
-    <span className="inline-flex items-center rounded-full bg-[oklch(0.9_0.04_75)] px-2 py-0.5 text-[11px] font-medium text-[oklch(0.35_0.05_50)]">
-      Демо
-    </span>
   );
 }
 

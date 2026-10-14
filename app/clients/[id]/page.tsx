@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { ContactDialog, DealDialog, OfferDialog, TaskDialog } from "@/components/record-dialogs";
-import { CrmGate, DemoBadge, EmptyState, Money, PageHeading } from "@/components/crm-ui";
+import { CrmGate, EmptyState, Money, PageHeading } from "@/components/crm-ui";
 import { useCrm } from "@/lib/crm-context";
 import { SEGMENTS, stageTitle } from "@/lib/labels";
 
@@ -48,7 +48,6 @@ function Client() {
         text={`${SEGMENTS[company.segment]}${company.inn ? ` · ИНН ${company.inn}` : ""} · ${company.phone || "телефон не указан"}`}
         action={
           <div className="flex flex-wrap gap-2">
-            {company.demo ? <DemoBadge /> : null}
             <Button variant="outline" onClick={() => setContactOpen(true)}>Контакт</Button>
             <Button variant="outline" onClick={() => setDealOpen(true)}>Сделка</Button>
             <Button onClick={() => setOfferOpen(true)}>Новое КП</Button>
@@ -56,9 +55,6 @@ function Client() {
         }
       />
       {company.note ? <p className="max-w-3xl text-sm text-muted-foreground">{company.note}</p> : null}
-      {company.demo ? (
-        <p className="text-sm text-muted-foreground">Это учебный клиент. В переписку с живым покупателем карточку не отправляйте.</p>
-      ) : null}
 
       <section className="grid gap-4 lg:grid-cols-2">
         <div className="rounded-2xl bg-card p-4 ring-1 ring-foreground/10">
@@ -69,7 +65,7 @@ function Client() {
             <ul className="mt-3 space-y-3">
               {contacts.map((contact) => (
                 <li key={contact.id} className="text-sm">
-                  <p className="font-medium">{contact.name} {contact.demo ? <DemoBadge /> : null}</p>
+                  <p className="font-medium">{contact.name}</p>
                   <p className="text-muted-foreground">{contact.role || "должность не указана"} · {contact.phone || "без телефона"} · {contact.email || "без почты"}</p>
                 </li>
               ))}

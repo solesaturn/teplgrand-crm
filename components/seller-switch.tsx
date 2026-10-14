@@ -19,13 +19,13 @@ export function SellerSwitch({ tone = "light" }: { tone?: "light" | "sidebar" })
       </p>
       <div className={tone === "sidebar" ? "mt-2 rounded-lg bg-background p-1 text-foreground" : "mt-2"}>
         <ChoiceSelect
-          label="Сменить учётку"
+          label="Сменить продавца"
           value={seller.id}
           onChange={switchSeller}
           options={data.sellers.map((item) => ({ value: item.id, label: item.name }))}
         />
       </div>
-      <p className={`mt-2 text-[11px] leading-snug ${quiet}`}>Учебная учётка. Пароль не нужен, лиды и заметки только ваши.</p>
+      <p className={`mt-2 text-[11px] leading-snug ${quiet}`}>Лиды и заметки этого продавца.</p>
     </div>
   );
 }

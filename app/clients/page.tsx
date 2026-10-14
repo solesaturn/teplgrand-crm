@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CompanyDialog } from "@/components/record-dialogs";
-import { CrmGate, DemoBadge, EmptyState, Money, PageHeading } from "@/components/crm-ui";
+import { CrmGate, EmptyState, Money, PageHeading } from "@/components/crm-ui";
 import { useCrm } from "@/lib/crm-context";
 import { norm } from "@/lib/format";
 import { OPEN_STAGES, SEGMENTS } from "@/lib/labels";
@@ -21,36 +21,31 @@ export default function ClientsPage() {
 function Clients() {
   const { data } = useCrm();
   const [query, setQuery] = useState("");
-  const [onlyDemo, setOnlyDemo] = useState(false);
   const [open, setOpen] = useState(false);
   const needle = norm(query);
   const shown = useMemo(() => {
     return data.companies.filter((company) => {
-      if (onlyDemo && !company.demo) return false;
       if (!needle) return true;
       return norm([company.name, company.city, company.inn, SEGMENTS[company.segment]].join(" ")).includes(needle);
     });
-  }, [data.companies, needle, onlyDemo]);
+  }, [data.companies, needle]);
 
   return (
     <div className="space-y-5">
       <PageHeading
         eyebrow="Покупатели"
         title="Компании"
-        text="Монтажники, торговые и партнёры. Учебные карточки помечены «демо»."
+        text="Монтажники, торговые и партнёры."
         action={<Button onClick={() => setOpen(true)}>Новая компания</Button>}
       />
       <div className="flex flex-col gap-2 sm:flex-row">
         <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Название, город или ИНН" aria-label="Поиск компаний" />
-        <Button type="button" variant={onlyDemo ? "default" : "outline"} onClick={() => setOnlyDemo((value) => !value)}>
-          Только демо
-        </Button>
       </div>
       {shown.length === 0 ? (
         <EmptyState
           title="Таких компаний нет"
           text="Смените запрос или добавьте карточку, если это новый покупатель."
-          action={<Button onClick={() => { setQuery(""); setOnlyDemo(false); }}>Сбросить фильтр</Button>}
+          action={<Button onClick={() => setQuery("")}>Сбросить фильтр</Button>}
         />
       ) : (
         <ul className="grid gap-3 lg:grid-cols-2">
@@ -66,7 +61,6 @@ function Clients() {
                       <h2 className="font-semibold">{company.name}</h2>
                       <p className="text-sm text-muted-foreground">{company.city} · {SEGMENTS[company.segment]}</p>
                     </div>
-                    {company.demo ? <DemoBadge /> : null}
                   </div>
                   <p className="mt-3 text-sm">В работе <Money value={openSum} className="font-medium tabular-nums" /></p>
                   <p className="text-xs text-muted-foreground">{deals.length} сделок · {contacts} контактов</p>

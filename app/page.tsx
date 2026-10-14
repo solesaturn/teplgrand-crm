@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { CrmGate, DemoBadge, Money, PageHeading } from "@/components/crm-ui";
+import { CrmGate, Money, PageHeading } from "@/components/crm-ui";
 import { useCrm } from "@/lib/crm-context";
 import { formatShortDate, todayIso } from "@/lib/format";
 import { LEAD_GROUPS, OFFER_STATUS, OPEN_STAGES, STAGES, TASK_KIND, stageTitle } from "@/lib/labels";
@@ -140,7 +140,6 @@ function Dashboard() {
                     <Link href={`/offers/${offer.id}`} className="font-medium hover:underline">{offer.number}</Link>
                     <p className="text-muted-foreground">
                       {company?.name} · {OFFER_STATUS[offer.status]}
-                      {company?.demo ? " · демо" : ""}
                     </p>
                   </div>
                   <Money value={offerTotal(offer.lines)} className="font-medium tabular-nums" />
@@ -160,7 +159,6 @@ function Dashboard() {
                   <p className="text-sm text-muted-foreground">
                     {company?.name} · {stageTitle(deal.stage)} · {deal.nextStep}
                   </p>
-                  {company?.demo ? <DemoBadge /> : null}
                 </li>
               );
             })}

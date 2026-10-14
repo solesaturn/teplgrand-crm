@@ -125,7 +125,7 @@ export const PRODUCTS: Product[] = [
   },
   {
     id: "el-12",
-    article: "DEMO-EL-12",
+    article: "TG-EL-12",
     name: "Котёл электрический настенный 12 кВт",
     category: "Котлы электрические",
     subcategory: "Настенный, 12 кВт",
@@ -317,7 +317,7 @@ export const PRODUCTS: Product[] = [
   },
   {
     id: "collector-4",
-    article: "DEMO-COL-4",
+    article: "TG-COL-4",
     name: "Коллектор отопления на 4 выхода с расходомерами",
     category: "Коллекторы и узлы",
     subcategory: "Тёплый пол",
@@ -341,7 +341,7 @@ export const PRODUCTS: Product[] = [
   },
   {
     id: "flue-60-100",
-    article: "DEMO-FLUE-60",
+    article: "TG-FLUE-60",
     name: "Дымоход коаксиальный 60/100, комплект к настенному котлу",
     category: "Дымоходы",
     subcategory: "Коаксиальный",

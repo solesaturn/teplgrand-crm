@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { DealDialog } from "@/components/record-dialogs";
-import { CrmGate, DemoBadge, EmptyState, Money, PageHeading } from "@/components/crm-ui";
+import { CrmGate, EmptyState, Money, PageHeading } from "@/components/crm-ui";
 import { useCrm } from "@/lib/crm-context";
 import { STAGES } from "@/lib/labels";
 import type { DealStage } from "@/lib/types";
@@ -64,8 +64,7 @@ function Pipeline() {
                           <p className="mt-1 text-xs text-muted-foreground">{company?.name}</p>
                           <p className="mt-2 text-sm"><Money value={deal.amount} className="font-medium tabular-nums" /></p>
                           <p className="mt-1 text-xs text-muted-foreground">{deal.nextStep}</p>
-                          <div className="mt-2 flex items-center justify-between gap-2">
-                            {company?.demo ? <DemoBadge /> : <span />}
+                          <div className="mt-2 flex justify-end">
                             <StageJump id={deal.id} stage={deal.stage} />
                           </div>
                         </article>
