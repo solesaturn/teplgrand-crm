@@ -57,7 +57,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <div className="max-w-lg rounded-2xl bg-card p-6 ring-1 ring-foreground/10">
           <p className="text-xs font-medium tracking-[0.16em] text-primary uppercase">Теплогранд</p>
           <h1 className="mt-2 text-xl font-semibold">Данные отдела не открылись</h1>
-          <p className="mt-2 text-sm text-muted-foreground">{error ?? "Локальная копия повреждена."}</p>
+          <p className="mt-2 text-sm text-muted-foreground">{error ?? "Попробуйте открыть стол ещё раз."}</p>
           <Button className="mt-4" onClick={reset}>
             Восстановить рабочий стол
           </Button>

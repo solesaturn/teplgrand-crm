@@ -36,6 +36,9 @@ yarn-error.log*
 # vercel
 .vercel
 
+# local desk when POSTGRES_URL is unset
+/data
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

@@ -1,8 +1,8 @@
 "use client";
 
-import { createContext, useContext, useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { createContext, useContext, useEffect, useMemo, useSyncExternalStore } from "react";
 import { toast } from "sonner";
-import { hashPassword, normalizeLogin } from "@/lib/auth";
+import { normalizeLogin } from "@/lib/auth";
 import { callbackStampOrNull, todayIso, uid } from "@/lib/format";
 import { quoteProduct } from "@/lib/pricing";
 import { productById } from "@/lib/products";
@@ -31,8 +31,7 @@ import type {
   TaskKind,
 } from "@/lib/types";
 
-const STORAGE_KEY = "telpcrm.v3";
-const RETIRED_KEYS = ["telpcrm.v2", "telpcrm.v1"];
+const RETIRED_KEYS = ["telpcrm.v3", "telpcrm.v2", "telpcrm.v1"];
 
 const EMPTY: CrmData = {
   companies: [],
@@ -148,7 +147,7 @@ function normalizeSeller(raw: unknown): Seller | null {
   if (typeof seller.id !== "string" || typeof seller.name !== "string") return null;
   const login = typeof seller.login === "string" ? normalizeLogin(seller.login) : "";
   const passwordHash = typeof seller.passwordHash === "string" ? seller.passwordHash : "";
-  if (!login || !passwordHash) return null;
+  if (!login) return null;
   return {
     id: seller.id,
     name: seller.name,
@@ -167,7 +166,7 @@ function normalizeAdmin(raw: unknown): AdminAccount | null {
   if (typeof admin.id !== "string" || typeof admin.name !== "string") return null;
   const login = typeof admin.login === "string" ? normalizeLogin(admin.login) : "";
   const passwordHash = typeof admin.passwordHash === "string" ? admin.passwordHash : "";
-  if (!login || !passwordHash) return null;
+  if (!login) return null;
   return { id: admin.id, name: admin.name, login, passwordHash };
 }
 
@@ -185,8 +184,7 @@ function stripDemoArticles(offers: Offer[]) {
 
 function keptOrSeed<T>(raw: unknown, normalize: (value: unknown) => T | null, seed: T[]): T[] {
   if (!Array.isArray(raw)) return seed;
-  const items = raw.map(normalize).filter((item): item is T => item !== null);
-  return items.length ? items : seed;
+  return raw.map(normalize).filter((item): item is T => item !== null);
 }
 
 const SAMPLE_IDS = new Set([
@@ -275,36 +273,118 @@ function parseStored(value: unknown): { data: CrmData; session: Session | null }
 
 function publish(next: Snapshot) {
   clientSnapshot = next;
-  if (next.status === "ready") {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ session: next.session, data: next.data }));
-  }
   listeners.forEach((listener) => listener());
 }
 
 function readClient(): Snapshot {
-  if (clientSnapshot) return clientSnapshot;
+  return clientSnapshot ?? SERVER_SNAPSHOT;
+}
+
+function retireLocalAccounts() {
   try {
     for (const key of RETIRED_KEYS) localStorage.removeItem(key);
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) {
-      const data = createSeed();
-      clientSnapshot = { status: "ready", error: null, session: null, data };
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ session: null, data }));
-    } else {
-      const stored = parseStored(JSON.parse(raw) as unknown);
-      if (!stored) throw new Error("Сохранённые данные отдела повреждены.");
-      clientSnapshot = { status: "ready", error: null, session: stored.session, data: stored.data };
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ session: stored.session, data: stored.data }));
-    }
-  } catch (caught) {
-    clientSnapshot = {
-      status: "error",
-      error: caught instanceof Error ? caught.message : "Не удалось открыть данные отдела.",
-      session: null,
-      data: EMPTY,
-    };
+  } catch {
+    // Private mode can block storage. The desk no longer reads it.
   }
-  return clientSnapshot;
+}
+
+let bootPromise: Promise<void> | null = null;
+let saveTimer: ReturnType<typeof setTimeout> | null = null;
+let saveFlight = false;
+let saveDirty = false;
+
+async function readJson(response: Response) {
+  return (await response.json().catch(() => null)) as { error?: string; session?: Session | null; data?: CrmData } & Partial<CrmData> | null;
+}
+
+function applyPayload(session: Session | null, payload: unknown) {
+  const stored = parseStored({ data: payload, session });
+  if (!stored) throw new Error("Ответ сервера не похож на данные отдела.");
+  publish({ status: "ready", error: null, session: stored.session, data: stored.data });
+}
+
+async function loadFromServer() {
+  retireLocalAccounts();
+  const sessionRes = await fetch("/api/auth/session", { cache: "no-store" });
+  const sessionBody = await readJson(sessionRes);
+  if (!sessionRes.ok) throw new Error(sessionBody?.error ?? "Не удалось проверить сессию.");
+  const session = sessionBody?.session ?? null;
+  if (!session) {
+    publish({ status: "ready", error: null, session: null, data: EMPTY });
+    return;
+  }
+  const crmRes = await fetch("/api/crm", { cache: "no-store" });
+  const crmBody = await readJson(crmRes);
+  if (crmRes.status === 401) {
+    publish({ status: "ready", error: null, session: null, data: EMPTY });
+    return;
+  }
+  if (!crmRes.ok) throw new Error(crmBody?.error ?? "Не удалось открыть данные отдела.");
+  applyPayload(session, crmBody);
+}
+
+function failBoot(caught: unknown) {
+  publish({
+    status: "error",
+    error: caught instanceof Error ? caught.message : "Не удалось открыть данные отдела.",
+    session: null,
+    data: EMPTY,
+  });
+}
+
+function startBoot(force = false) {
+  if (!force && bootPromise) return;
+  if (!force && clientSnapshot && clientSnapshot.status !== "loading") return;
+  if (force) publish({ status: "loading", error: null, session: null, data: EMPTY });
+  bootPromise = loadFromServer()
+    .catch(failBoot)
+    .finally(() => {
+      bootPromise = null;
+    });
+}
+
+async function flushSave() {
+  const snap = readClient();
+  if (snap.status !== "ready" || snap.session?.kind !== "seller") {
+    saveDirty = false;
+    return;
+  }
+  if (saveFlight) return;
+  saveFlight = true;
+  saveDirty = false;
+  const payload = snap.data;
+  try {
+    const response = await fetch("/api/crm", {
+      method: "PUT",
+      cache: "no-store",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (response.status === 401) {
+      publish({ status: "ready", error: null, session: null, data: EMPTY });
+      toast.error("Сессия закончилась. Войдите снова.");
+      return;
+    }
+    if (!response.ok) {
+      const body = await readJson(response);
+      toast.error(body?.error ?? "Не удалось сохранить изменения");
+    }
+  } catch {
+    toast.error("Не удалось сохранить изменения");
+  } finally {
+    saveFlight = false;
+    if (saveDirty) scheduleSave();
+  }
+}
+
+function scheduleSave() {
+  if (readClient().session?.kind !== "seller") return;
+  saveDirty = true;
+  if (saveTimer) clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    saveTimer = null;
+    void flushSave();
+  }, 200);
 }
 
 function subscribe(listener: () => void) {
@@ -322,6 +402,7 @@ function mutate(recipe: (draft: CrmData) => void) {
   const next = structuredClone(current.data);
   recipe(next);
   publish({ status: "ready", error: null, session: current.session, data: next });
+  scheduleSave();
 }
 
 function currentSellerId() {
@@ -396,14 +477,10 @@ type CrmApi = {
 const CrmContext = createContext<CrmApi | null>(null);
 
 export function CrmProvider({ children }: { children: React.ReactNode }) {
-  const stored = useSyncExternalStore(subscribe, readClient, getServerSnapshot);
-  const [hydrated, setHydrated] = useState(false);
+  const snapshot = useSyncExternalStore(subscribe, readClient, getServerSnapshot);
   useEffect(() => {
-    // The server snapshot stays on "loading" until the browser can read localStorage.
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- hydrate stored accounts after mount
-    setHydrated(true);
+    startBoot();
   }, []);
-  const snapshot = hydrated ? stored : SERVER_SNAPSHOT;
 
   const api = useMemo<CrmApi>(() => {
     return {
@@ -413,80 +490,66 @@ export function CrmProvider({ children }: { children: React.ReactNode }) {
       sellerId: snapshot.session?.kind === "seller" ? snapshot.session.sellerId : "",
       data: snapshot.data,
       reset: () => {
-        const data = createSeed();
-        publish({ status: "ready", error: null, session: null, data });
-        toast.success("Рабочий стол восстановлен");
+        startBoot(true);
       },
       login: async (loginName, password) => {
-        const current = readClient();
-        if (current.status !== "ready") return "invalid";
-        const login = normalizeLogin(loginName);
-        if (!login || !password) return "invalid";
-        const passwordHash = await hashPassword(password);
-        const admin = current.data.admins.find((item) => item.login === login && item.passwordHash === passwordHash);
-        if (admin) {
-          publish({ ...readClient(), session: { kind: "admin", adminId: admin.id } });
-          return "ok";
+        const response = await fetch("/api/auth/login", {
+          method: "POST",
+          cache: "no-store",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ login: loginName, password }),
+        });
+        const body = await readJson(response);
+        if (response.status === 401) return "invalid";
+        if (!response.ok || !body?.session) {
+          publish({
+            status: "error",
+            error: body?.error ?? "Не удалось войти.",
+            session: null,
+            data: EMPTY,
+          });
+          return "invalid";
         }
-        const seller = current.data.sellers.find((item) => item.login === login && item.passwordHash === passwordHash);
-        if (seller) {
-          publish({ ...readClient(), session: { kind: "seller", sellerId: seller.id } });
-          return "ok";
-        }
-        return "invalid";
+        applyPayload(body.session, body.data);
+        return "ok";
       },
       logout: () => {
         const current = readClient();
         if (current.status !== "ready" || !current.session) return;
-        publish({ ...current, session: null });
+        publish({ status: "ready", error: null, session: null, data: EMPTY });
+        void fetch("/api/auth/logout", { method: "POST", cache: "no-store" });
       },
       addSeller: async (input) => {
-        const name = input.name.trim();
-        const login = normalizeLogin(input.login);
-        const password = input.password;
-        if (!name || !login || !password) return { ok: false, error: "Укажите имя, логин и пароль." };
-        if (password.length < 6) return { ok: false, error: "Пароль должен быть не короче 6 знаков." };
         const current = readClient();
         if (current.status !== "ready" || current.session?.kind !== "admin") {
           return { ok: false, error: "Добавлять продавцов может администратор." };
         }
-        const taken = current.data.admins.some((item) => item.login === login) || current.data.sellers.some((item) => item.login === login);
-        if (taken) return { ok: false, error: "Такой логин уже есть." };
-        const passwordHash = await hashPassword(password);
-        mutate((draft) => {
-          draft.sellers.push({
-            id: uid("s"),
-            name,
-            role: "Продавец",
-            city: "",
-            phone: "",
-            login,
-            passwordHash,
-            demo: false,
-          });
+        const response = await fetch("/api/sellers", {
+          method: "POST",
+          cache: "no-store",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(input),
         });
+        const body = await readJson(response);
+        if (!response.ok || !body) return { ok: false, error: body?.error ?? "Не удалось добавить продавца." };
+        applyPayload(current.session, body);
         toast.success("Продавец может войти под своим логином");
         return { ok: true };
       },
       removeSeller: (id) => {
         const current = readClient();
         if (current.status !== "ready" || current.session?.kind !== "admin") return;
-        if (current.data.admins.some((admin) => admin.id === id)) return;
-        const seller = current.data.sellers.find((item) => item.id === id);
-        if (!seller) return;
-        const leadIds = new Set(current.data.leads.filter((lead) => lead.sellerId === id).map((lead) => lead.id));
-        mutate((draft) => {
-          draft.sellers = draft.sellers.filter((item) => item.id !== id);
-          draft.leads = draft.leads.filter((lead) => lead.sellerId !== id);
-          draft.sellerNotes = draft.sellerNotes.filter((note) => note.sellerId !== id && !leadIds.has(note.leadId));
-          draft.leadCalls = draft.leadCalls.filter((call) => call.sellerId !== id && !leadIds.has(call.leadId));
-          draft.tasks = draft.tasks.filter((task) => !task.leadId || !leadIds.has(task.leadId));
-        });
-        const after = readClient();
-        if (after.session?.kind === "seller" && after.session.sellerId === id) {
-          publish({ ...after, session: null });
-        }
-        toast.success("Продавец удалён. Войти он больше не сможет.");
+        void (async () => {
+          const response = await fetch(`/api/sellers/${encodeURIComponent(id)}`, { method: "DELETE", cache: "no-store" });
+          const body = await readJson(response);
+          if (!response.ok || !body) {
+            toast.error(body?.error ?? "Не удалось удалить продавца.");
+            return;
+          }
+          const session = readClient().session;
+          applyPayload(session?.kind === "admin" ? session : null, body);
+          toast.success("Продавец удалён. Войти он больше не сможет.");
+        })();
       },
       addLead: (input) => {
         const sellerId = currentSellerId();
