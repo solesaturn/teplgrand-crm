@@ -86,7 +86,7 @@ function CompanyForm({ onClose }: { onClose: () => void }) {
         }}
       >
         <Field label="Название">
-          <Input value={name} onChange={(event) => setName(event.target.value)} placeholder="ООО «Пример»" />
+          <Input value={name} onChange={(event) => setName(event.target.value)} placeholder="Название компании" />
         </Field>
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label="Город">
@@ -604,7 +604,7 @@ function LeadForm({ onClose, onCreated }: { onClose: () => void; onCreated?: (id
         }}
       >
         <Field label="Имя">
-          <Input value={name} onChange={(event) => setName(event.target.value)} placeholder="Иван Петров" />
+          <Input value={name} onChange={(event) => setName(event.target.value)} placeholder="Имя" />
         </Field>
         <PhoneList phones={phones} onChange={setPhones} />
         <BuyerLinks
@@ -617,7 +617,7 @@ function LeadForm({ onClose, onCreated }: { onClose: () => void; onCreated?: (id
         />
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label="Компания или объект">
-            <Input value={companyName} onChange={(event) => setCompanyName(event.target.value)} placeholder="ООО «Пример»" />
+            <Input value={companyName} onChange={(event) => setCompanyName(event.target.value)} placeholder="Название компании" />
           </Field>
           <Field label="Город">
             <Input value={city} onChange={(event) => setCity(event.target.value)} />

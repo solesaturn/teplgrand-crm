@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { toast } from "sonner";
-import { hashPassword, normalizeLogin, SEED_SELLER_LOGINS } from "@/lib/auth";
+import { hashPassword, normalizeLogin } from "@/lib/auth";
 import { callbackStampOrNull, todayIso, uid } from "@/lib/format";
 import { quoteProduct } from "@/lib/pricing";
 import { productById } from "@/lib/products";
@@ -31,8 +31,8 @@ import type {
   TaskKind,
 } from "@/lib/types";
 
-const STORAGE_KEY = "telpcrm.v2";
-const LEGACY_KEY = "telpcrm.v1";
+const STORAGE_KEY = "telpcrm.v3";
+const RETIRED_KEYS = ["telpcrm.v2", "telpcrm.v1"];
 
 const EMPTY: CrmData = {
   companies: [],
@@ -146,9 +146,8 @@ function normalizeSeller(raw: unknown): Seller | null {
   if (!raw || typeof raw !== "object") return null;
   const seller = raw as Partial<Seller>;
   if (typeof seller.id !== "string" || typeof seller.name !== "string") return null;
-  const seeded = SEED_SELLER_LOGINS[seller.id];
-  const login = typeof seller.login === "string" && seller.login.trim() ? normalizeLogin(seller.login) : seeded?.login ?? "";
-  const passwordHash = typeof seller.passwordHash === "string" && seller.passwordHash ? seller.passwordHash : seeded?.passwordHash ?? "";
+  const login = typeof seller.login === "string" ? normalizeLogin(seller.login) : "";
+  const passwordHash = typeof seller.passwordHash === "string" ? seller.passwordHash : "";
   if (!login || !passwordHash) return null;
   return {
     id: seller.id,
@@ -190,6 +189,37 @@ function keptOrSeed<T>(raw: unknown, normalize: (value: unknown) => T | null, se
   return items.length ? items : seed;
 }
 
+const SAMPLE_IDS = new Set([
+  "domkom", "povolzhye", "teploservis", "cottage", "severny",
+  "c-ilya", "c-olga", "c-pavel", "c-andrey", "c-svetlana",
+  "deal-domkom", "deal-povolzhye", "deal-invoice", "deal-nn", "deal-cottage", "deal-won", "deal-lost",
+  "offer-domkom", "offer-povolzhye", "offer-invoice",
+  "task-call", "task-overdue", "task-meet", "task-visit", "task-done",
+  "s-marina", "s-artem", "s-kira",
+  "lead-sergey", "lead-dmitry", "lead-alina", "lead-igor", "lead-natalia", "lead-rustam", "lead-gulnara", "lead-viktor", "lead-pavel-y", "lead-oksana", "lead-elena",
+  "note-sergey", "note-dmitry", "note-alina", "note-gulnara", "note-pavel-y", "note-oksana", "note-elena",
+  "call-sergey-today", "call-sergey-yesterday", "call-alina-today", "call-gulnara",
+]);
+
+const SAMPLE_SELLER_NAMES = new Set(["марина соколова", "артём белов", "артем белов", "кира лебедева", "ольга крылова"]);
+
+function purgeSample(data: CrmData): CrmData {
+  const sellers = data.sellers.filter((seller) => !SAMPLE_IDS.has(seller.id) && !SAMPLE_SELLER_NAMES.has(seller.name.trim().toLowerCase()));
+  const sellerIds = new Set(sellers.map((seller) => seller.id));
+  return {
+    ...data,
+    sellers,
+    companies: data.companies.filter((company) => !SAMPLE_IDS.has(company.id)),
+    contacts: data.contacts.filter((contact) => !SAMPLE_IDS.has(contact.id) && !SAMPLE_IDS.has(contact.companyId)),
+    deals: data.deals.filter((deal) => !SAMPLE_IDS.has(deal.id) && !SAMPLE_IDS.has(deal.companyId)),
+    offers: data.offers.filter((offer) => !SAMPLE_IDS.has(offer.id) && !(offer.companyId && SAMPLE_IDS.has(offer.companyId)) && !(offer.dealId && SAMPLE_IDS.has(offer.dealId))),
+    tasks: data.tasks.filter((task) => !SAMPLE_IDS.has(task.id) && !(task.companyId && SAMPLE_IDS.has(task.companyId)) && !(task.dealId && SAMPLE_IDS.has(task.dealId)) && !(task.contactId && SAMPLE_IDS.has(task.contactId)) && !(task.leadId && SAMPLE_IDS.has(task.leadId))),
+    leads: data.leads.filter((lead) => !SAMPLE_IDS.has(lead.id) && sellerIds.has(lead.sellerId)),
+    sellerNotes: data.sellerNotes.filter((note) => !SAMPLE_IDS.has(note.id) && sellerIds.has(note.sellerId) && !SAMPLE_IDS.has(note.leadId)),
+    leadCalls: data.leadCalls.filter((call) => !SAMPLE_IDS.has(call.id) && sellerIds.has(call.sellerId) && !SAMPLE_IDS.has(call.leadId)),
+  };
+}
+
 function backfill(partial: Partial<CrmData>): CrmData {
   const seed = createSeed();
   const storedLeads = Array.isArray(partial.leads)
@@ -201,7 +231,7 @@ function backfill(partial: Partial<CrmData>): CrmData {
     const sample = seedById.get(lead.id);
     return sample?.callbackAt ? { ...lead, callbackAt: sample.callbackAt } : lead;
   });
-  return {
+  return purgeSample({
     companies: asArray(partial.companies, seed.companies),
     contacts: asArray(partial.contacts, seed.contacts),
     deals: asArray(partial.deals, seed.deals),
@@ -214,7 +244,7 @@ function backfill(partial: Partial<CrmData>): CrmData {
     leadCalls: Array.isArray(partial.leadCalls)
       ? partial.leadCalls.map(normalizeLeadCall).filter((call): call is LeadCall => call !== null)
       : seed.leadCalls,
-  };
+  });
 }
 
 function parseSession(data: CrmData, value: unknown): Session | null {
@@ -254,7 +284,8 @@ function publish(next: Snapshot) {
 function readClient(): Snapshot {
   if (clientSnapshot) return clientSnapshot;
   try {
-    const raw = localStorage.getItem(STORAGE_KEY) ?? localStorage.getItem(LEGACY_KEY);
+    for (const key of RETIRED_KEYS) localStorage.removeItem(key);
+    const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) {
       const data = createSeed();
       clientSnapshot = { status: "ready", error: null, session: null, data };

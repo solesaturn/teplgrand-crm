@@ -34,7 +34,7 @@ export function PhoneList({ phones, onChange }: { phones: LeadPhone[]; onChange:
             <Input
               value={phone.owner}
               aria-label={`Чей номер ${index + 1}`}
-              placeholder="Прораб, офис, жена"
+              placeholder="Чей номер"
               onChange={(event) => onChange(phones.map((item) => (item.id === phone.id ? { ...item, owner: event.target.value } : item)))}
             />
           </Field>
