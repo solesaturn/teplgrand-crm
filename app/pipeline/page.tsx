@@ -50,6 +50,11 @@ function Pipeline() {
               className="rounded-full"
               role="tab"
               aria-selected={selected}
+              style={
+                selected
+                  ? { backgroundColor: "#3f2e24", color: "#ffffff", borderColor: "#3f2e24" }
+                  : { backgroundColor: "#ffffff", color: "#2c241c", borderColor: "#e4d7c8" }
+              }
               onClick={() => setStage(item.id)}
             >
               {item.title} {count}

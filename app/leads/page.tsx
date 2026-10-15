@@ -164,14 +164,14 @@ function Leads() {
                   onClick={() => setPicked(lead.id)}
                 >
                   <span className="flex items-start justify-between gap-2">
-                    <span className="text-sm font-semibold">{lead.name}</span>
+                    <span className="text-sm font-semibold">{lead.companyName || "Без компании"}</span>
                     <span className="shrink-0 text-xs text-muted-foreground">{leadGroupTitle(lead.group)}</span>
                   </span>
+                  <span className="mt-1 block text-xs">{lead.name}</span>
                   <span className="mt-1 block text-xs text-muted-foreground">{primaryPhone(lead)}</span>
                   {isAdmin && sellerName(lead.sellerId) ? (
                     <span className="mt-1 block text-xs font-medium">{sellerName(lead.sellerId)}</span>
                   ) : null}
-                  <span className="mt-1 block text-xs">{lead.companyName || "Без компании"}</span>
                   {lead.group === "reschedule" && lead.callbackAt ? (
                     <span className="mt-1 block text-xs font-medium">
                       {formatCallback(lead.callbackAt)}
@@ -220,12 +220,12 @@ function Leads() {
                         )}
                       >
                         <button type="button" className="w-full text-left" onClick={() => setPicked(lead.id)}>
-                          <p className="text-sm font-semibold">{lead.name}</p>
+                          <p className="text-sm font-semibold">{lead.companyName || "Без компании"}</p>
+                          <p className="mt-1 text-xs">{lead.name}</p>
                           {isAdmin && sellerName(lead.sellerId) ? (
                             <p className="mt-1 text-xs font-medium">{sellerName(lead.sellerId)}</p>
                           ) : null}
                           <p className="mt-1 text-xs text-muted-foreground">{primaryPhone(lead)}</p>
-                          <p className="mt-1 text-xs">{lead.companyName || "Без компании"}</p>
                           {lead.group === "reschedule" && lead.callbackAt ? (
                             <p className="mt-1 text-xs text-muted-foreground">
                               {formatCallback(lead.callbackAt)}
@@ -481,6 +481,10 @@ function LeadOverlay({
       <div className="grid max-h-[75vh] gap-4 overflow-y-auto pr-1 lg:grid-cols-2">
         <div className="space-y-3">
           <label className="block space-y-1 text-sm">
+            Компания или объект
+            <Input aria-label="Компания" readOnly={adminView} value={draft.companyName} onChange={(event) => setDraft({ ...draft, companyName: event.target.value })} />
+          </label>
+          <label className="block space-y-1 text-sm">
             Имя
             <Input aria-label="Имя" readOnly={adminView} value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} />
           </label>
@@ -489,10 +493,6 @@ function LeadOverlay({
             onChange={(phones) => setDraft({ ...draft, phones })}
             readOnly={adminView}
           />
-          <label className="block space-y-1 text-sm">
-            Компания или объект
-            <Input aria-label="Компания" readOnly={adminView} value={draft.companyName} onChange={(event) => setDraft({ ...draft, companyName: event.target.value })} />
-          </label>
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="block space-y-1 text-sm">
               Город
