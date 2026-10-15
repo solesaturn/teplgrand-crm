@@ -76,7 +76,7 @@ function SellerShell({ children }: { children: React.ReactNode }) {
   const links = [...PRIMARY, ...sellers, ...MORE];
 
   return (
-    <div className="min-h-dvh md:grid md:grid-cols-[240px_1fr]">
+    <div className="min-h-dvh md:grid md:grid-cols-[240px_minmax(0,1fr)]">
       <aside className="no-print hidden md:flex md:min-h-dvh md:flex-col md:overflow-hidden md:bg-sidebar md:text-sidebar-foreground">
         <div className="border-b border-sidebar-border px-4 py-4">
           <p className="text-[11px] font-medium tracking-[0.18em] text-[oklch(0.78_0.05_75)] uppercase">Теплогранд</p>
@@ -112,7 +112,7 @@ function SellerShell({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
 
-      <div className="flex min-h-dvh flex-col">
+      <div className="flex min-h-dvh min-w-0 flex-col">
         <header className="no-print sticky top-0 z-30 border-b bg-background/90 px-4 py-3 backdrop-blur md:hidden">
           <div className="flex items-center justify-between gap-3">
           <div>
@@ -145,7 +145,7 @@ function SellerShell({ children }: { children: React.ReactNode }) {
           </div>
         </header>
 
-        <main className="flex-1 px-4 py-5 pb-24 md:px-8 md:pb-10">{children}</main>
+        <main className="min-w-0 flex-1 px-4 py-5 pb-24 md:px-8 md:pb-10">{children}</main>
 
         <nav className="no-print fixed inset-x-0 bottom-0 z-30 flex overflow-x-auto border-t bg-background/95 backdrop-blur md:hidden" aria-label="Основные разделы">
           {PRIMARY.map((item) => {

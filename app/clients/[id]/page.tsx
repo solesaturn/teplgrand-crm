@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { ConfirmDelete } from "@/components/confirm-delete";
 import { ContactDialog, DealDialog, OfferDialog, TaskDialog } from "@/components/record-dialogs";
 import { CrmGate, EmptyState, Money, PageHeading } from "@/components/crm-ui";
 import { useCrm } from "@/lib/crm-context";
@@ -19,12 +20,16 @@ export default function ClientPage() {
 
 function Client() {
   const params = useParams<{ id: string }>();
-  const { data } = useCrm();
+  const router = useRouter();
+  const { data, session, removeClient } = useCrm();
+  const isAdmin = session?.kind === "admin";
   const company = data.companies.find((item) => item.id === params.id);
   const [contactOpen, setContactOpen] = useState(false);
   const [dealOpen, setDealOpen] = useState(false);
   const [offerOpen, setOfferOpen] = useState(false);
   const [taskOpen, setTaskOpen] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   if (!company) {
     return (
@@ -51,6 +56,11 @@ function Client() {
             <Button variant="outline" onClick={() => setContactOpen(true)}>Контакт</Button>
             <Button variant="outline" onClick={() => setDealOpen(true)}>Сделка</Button>
             <Button onClick={() => setOfferOpen(true)}>Новое КП</Button>
+            {isAdmin ? (
+              <Button type="button" variant="outline" aria-label={`Удалить клиента ${company.name}`} onClick={() => setConfirming(true)}>
+                Удалить клиента
+              </Button>
+            ) : null}
           </div>
         }
       />
@@ -110,6 +120,23 @@ function Client() {
         )}
       </section>
 
+      <ConfirmDelete
+        open={confirming}
+        title={`Удалить ${company.name}?`}
+        description="Этот клиент исчезнет из списка. Контакты и сделки останутся."
+        pending={deleting}
+        onCancel={() => setConfirming(false)}
+        onConfirm={() => {
+          const id = company.id;
+          setDeleting(true);
+          void removeClient(id).then((ok) => {
+            setDeleting(false);
+            if (!ok) return;
+            setConfirming(false);
+            router.push("/clients");
+          });
+        }}
+      />
       <ContactDialog open={contactOpen} onOpenChange={setContactOpen} companyId={company.id} />
       <DealDialog open={dealOpen} onOpenChange={setDealOpen} companyId={company.id} />
       <OfferDialog open={offerOpen} onOpenChange={setOfferOpen} companyId={company.id} />

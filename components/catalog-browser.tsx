@@ -38,14 +38,14 @@ export function CatalogBrowser({
   }, []);
 
   return (
-    <div className="space-y-3">
+    <div className="min-w-0 space-y-3">
       <Input
         value={query}
         onChange={(event) => setQuery(event.target.value)}
         placeholder="Артикул, название или категория"
         aria-label="Поиск по каталогу"
       />
-      <div className="flex gap-2 overflow-x-auto pb-1" role="toolbar" aria-label="Категории">
+      <div className="flex flex-wrap gap-2" role="toolbar" aria-label="Категории">
         <Button type="button" size="sm" variant={category === null ? "default" : "outline"} className="rounded-full" onClick={() => setCategory(null)}>
           Все {PRODUCTS.length}
         </Button>
@@ -73,26 +73,26 @@ export function CatalogBrowser({
           }
         />
       ) : (
-        <ul className="divide-y overflow-hidden rounded-xl bg-card ring-1 ring-foreground/10">
+        <ul className="w-full min-w-0 max-w-full divide-y overflow-hidden rounded-xl bg-card ring-1 ring-foreground/10">
           {shown.map((product) => {
             const priced = policyPrice(product, discountId);
             return (
-              <li key={product.id} className="flex flex-col gap-3 px-3 py-3 sm:flex-row sm:items-start sm:justify-between">
-                <div className="min-w-0">
+              <li key={product.id} className="flex w-full min-w-0 max-w-full flex-col gap-3 px-3 py-3 sm:flex-row sm:items-start sm:justify-between">
+                <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                     <span className="font-mono">{product.article}</span>
-                    <span>{product.category}</span>
+                    <span className="break-words">{product.category}</span>
                     {product.priceOrigin === "public-retail" ? <span>Розница открытого источника</span> : null}
                   </div>
-                  <p className="mt-1 text-sm font-medium text-balance">{product.name}</p>
-                  <p className="mt-1 text-xs text-muted-foreground">
+                  <p className="mt-1 break-words text-sm font-medium">{product.name}</p>
+                  <p className="mt-1 break-words text-xs text-muted-foreground">
                     {[product.brand, product.subcategory, product.powerKw ? `${product.powerKw} кВт` : null, product.dnMm ? `DN ${product.dnMm}` : null, product.unit]
                       .filter(Boolean)
                       .join(" · ")}
                   </p>
-                  <p className="mt-1 text-xs text-muted-foreground">{priced.label}</p>
+                  <p className="mt-1 break-words text-xs text-muted-foreground">{priced.label}</p>
                 </div>
-                <div className="flex items-center justify-between gap-3 sm:flex-col sm:items-end">
+                <div className="flex shrink-0 items-center justify-between gap-3 sm:flex-col sm:items-end">
                   <p className="text-base font-semibold">
                     <Money value={priced.price} />
                   </p>

@@ -483,6 +483,8 @@ type CrmApi = {
   removeLead: (id: string) => Promise<boolean>;
   removeOffer: (id: string) => Promise<boolean>;
   removeTask: (id: string) => Promise<boolean>;
+  removeContact: (id: string) => Promise<boolean>;
+  removeClient: (id: string) => Promise<boolean>;
   addLead: (input: Omit<Lead, "id" | "sellerId" | "demo" | "createdAt"> & { note?: string }) => string;
   setLeadGroup: (id: string, group: LeadGroup) => void;
   updateLead: (
@@ -593,6 +595,8 @@ export function CrmProvider({ children }: { children: React.ReactNode }) {
       removeLead: (id) => adminDelete(`/api/leads/${encodeURIComponent(id)}`, "Лид удалён"),
       removeOffer: (id) => adminDelete(`/api/offers/${encodeURIComponent(id)}`, "Предложение удалено"),
       removeTask: (id) => adminDelete(`/api/tasks/${encodeURIComponent(id)}`, "Задача удалена"),
+      removeContact: (id) => adminDelete(`/api/contacts/${encodeURIComponent(id)}`, "Контакт удалён"),
+      removeClient: (id) => adminDelete(`/api/clients/${encodeURIComponent(id)}`, "Клиент удалён"),
       addLead: (input) => {
         const sellerId = currentSellerId();
         if (!sellerId) return "";

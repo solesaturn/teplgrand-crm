@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ConfirmDelete } from "@/components/confirm-delete";
 import { ContactDialog } from "@/components/record-dialogs";
 import { CrmGate, EmptyState, PageHeading } from "@/components/crm-ui";
 import { useCrm } from "@/lib/crm-context";
@@ -18,9 +19,13 @@ export default function ContactsPage() {
 }
 
 function Contacts() {
-  const { data } = useCrm();
+  const { data, session, removeContact } = useCrm();
+  const isAdmin = session?.kind === "admin";
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
+  const [confirming, setConfirming] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const confirmingContact = data.contacts.find((contact) => contact.id === confirming) ?? null;
   const needle = norm(query);
   const shown = useMemo(() => {
     return data.contacts.filter((contact) => {
@@ -49,22 +54,46 @@ function Contacts() {
           {shown.map((contact) => {
             const company = data.companies.find((item) => item.id === contact.companyId);
             return (
-              <li key={contact.id} className="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-                <div>
+              <li key={contact.id} className="flex min-w-0 flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
                   <p className="font-medium">{contact.name}</p>
                   <p className="text-sm text-muted-foreground">{contact.role || "без должности"} · {contact.phone || "без телефона"} · {contact.email || "без почты"}</p>
                 </div>
-                {company ? (
-                  <Link href={`/clients/${company.id}`} className="text-sm font-medium hover:underline">{company.name}</Link>
-                ) : (
-                  <span className="text-sm text-muted-foreground">Компания не указана</span>
-                )}
+                <div className="flex flex-wrap items-center gap-3">
+                  {company ? (
+                    <Link href={`/clients/${company.id}`} className="text-sm font-medium hover:underline">{company.name}</Link>
+                  ) : (
+                    <span className="text-sm text-muted-foreground">Компания не указана</span>
+                  )}
+                  {isAdmin ? (
+                    <Button type="button" variant="outline" size="sm" aria-label={`Удалить контакт ${contact.name}`} onClick={() => setConfirming(contact.id)}>
+                      Удалить
+                    </Button>
+                  ) : null}
+                </div>
               </li>
             );
           })}
         </ul>
       )}
       <ContactDialog open={open} onOpenChange={setOpen} />
+      <ConfirmDelete
+        open={confirmingContact !== null}
+        title={confirmingContact ? `Удалить ${confirmingContact.name}?` : "Удалить контакт?"}
+        description="Этот контакт исчезнет из списка. Компания останется."
+        pending={deleting}
+        onCancel={() => setConfirming(null)}
+        onConfirm={() => {
+          if (!confirmingContact) return;
+          const id = confirmingContact.id;
+          setDeleting(true);
+          void removeContact(id).then((ok) => {
+            setDeleting(false);
+            if (!ok) return;
+            setConfirming(null);
+          });
+        }}
+      />
     </div>
   );
 }

@@ -27,14 +27,14 @@ function Catalog() {
   const offerId = drafts.some((offer) => offer.id === pickedOffer) ? pickedOffer ?? "" : drafts[0]?.id ?? "";
 
   return (
-    <div className="space-y-5">
+    <div className="min-w-0 space-y-5">
       <PageHeading
         eyebrow="Прайс продавца"
         title="Каталог для коммерческого предложения"
         text={`${PRODUCTS.length} позиций в десяти категориях каталога. Единица — штука, количество целое, как в калькуляторе. Д1–Д3 считаются для LD Pride и Arderia / ТГУ-НОРД с Arderia. Остальные группы политики от 20.01.2026 в калькуляторе каталога не подставляются.`}
       />
-      <div className="grid gap-3 rounded-2xl bg-card p-4 ring-1 ring-foreground/10 lg:grid-cols-2">
-        <div>
+      <div className="grid min-w-0 gap-3 rounded-2xl bg-card p-4 ring-1 ring-foreground/10 lg:grid-cols-2">
+        <div className="min-w-0">
           <p className="mb-1 text-sm font-medium">Скидка для цены в списке</p>
           <ChoiceSelect
             label="Скидка"
@@ -44,7 +44,7 @@ function Catalog() {
           />
           <p className="mt-2 text-xs text-muted-foreground">{PRICE_POLICY.title}</p>
         </div>
-        <div>
+        <div className="min-w-0">
           <p className="mb-1 text-sm font-medium">Куда класть позицию</p>
           {drafts.length === 0 ? (
             <p className="text-sm text-muted-foreground">Черновика нет. Создайте КП, затем возвращайтесь сюда.</p>

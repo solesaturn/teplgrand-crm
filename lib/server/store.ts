@@ -382,6 +382,30 @@ export async function deleteOffer(id: string) {
   return { ok: !missing, data };
 }
 
+export async function deleteContact(id: string) {
+  let missing = false;
+  const data = await updateData((draft) => {
+    if (!draft.contacts.some((contact) => contact.id === id)) {
+      missing = true;
+      return;
+    }
+    draft.contacts = draft.contacts.filter((contact) => contact.id !== id);
+  });
+  return { ok: !missing, data };
+}
+
+export async function deleteClient(id: string) {
+  let missing = false;
+  const data = await updateData((draft) => {
+    if (!draft.companies.some((company) => company.id === id)) {
+      missing = true;
+      return;
+    }
+    draft.companies = draft.companies.filter((company) => company.id !== id);
+  });
+  return { ok: !missing, data };
+}
+
 export async function deleteTask(id: string) {
   let missing = false;
   const data = await updateData((draft) => {

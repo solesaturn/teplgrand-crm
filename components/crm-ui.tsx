@@ -106,7 +106,7 @@ export function ChoiceSelect({
         if (typeof next === "string") onChange(next);
       }}
     >
-      <SelectTrigger className="w-full min-w-0" aria-label={label}>
+      <SelectTrigger className="w-full min-w-0 max-w-full overflow-hidden" aria-label={label}>
         <SelectValue />
       </SelectTrigger>
       <SelectContent className="z-[80]">
