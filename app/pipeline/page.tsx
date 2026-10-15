@@ -3,8 +3,9 @@
 import { useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { ConfirmDelete } from "@/components/confirm-delete";
 import { DealDialog } from "@/components/record-dialogs";
-import { CrmGate, EmptyState, Money, PageHeading } from "@/components/crm-ui";
+import { ChoiceSelect, CrmGate, EmptyState, Money, PageHeading } from "@/components/crm-ui";
 import { useCrm } from "@/lib/crm-context";
 import { STAGES } from "@/lib/labels";
 import type { DealStage } from "@/lib/types";
@@ -18,88 +19,101 @@ export default function PipelinePage() {
 }
 
 function Pipeline() {
-  const { data, moveDeal } = useCrm();
-  const [dragging, setDragging] = useState<string | null>(null);
+  const { data, moveDeal, removeDeal, session } = useCrm();
+  const isAdmin = session?.kind === "admin";
+  const [stage, setStage] = useState<DealStage>("new");
   const [open, setOpen] = useState(false);
+  const [confirming, setConfirming] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const current = STAGES.find((item) => item.id === stage) ?? STAGES[0];
+  const deals = data.deals.filter((deal) => deal.stage === current.id);
+  const confirmingDeal = data.deals.find((deal) => deal.id === confirming) ?? null;
 
   return (
-    <div className="space-y-5">
+    <div className="min-w-0 space-y-5">
       <PageHeading
         eyebrow="Воронка"
         title="Сделки"
-        text="На широком экране карточку можно перетащить на другой этап. На телефоне этап меняется в карточке сделки."
+        text="Этапы переносятся по ширине экрана. Под выбранным этапом — его сделки. Этап меняется прямо на карточке."
         action={<Button onClick={() => setOpen(true)}>Новая сделка</Button>}
       />
-      <div className="flex gap-3 overflow-x-auto pb-2">
-        {STAGES.map((stage) => {
-          const deals = data.deals.filter((deal) => deal.stage === stage.id);
+      <div className="flex flex-wrap gap-2" role="tablist" aria-label="Этапы сделок">
+        {STAGES.map((item) => {
+          const count = data.deals.filter((deal) => deal.stage === item.id).length;
+          const selected = item.id === current.id;
           return (
-            <section
-              key={stage.id}
-              className="w-[260px] shrink-0 rounded-2xl bg-muted/60 p-2"
-              onDragOver={(event) => event.preventDefault()}
-              onDrop={() => {
-                if (dragging) moveDeal(dragging, stage.id);
-                setDragging(null);
-              }}
+            <Button
+              key={item.id}
+              type="button"
+              size="sm"
+              variant={selected ? "default" : "outline"}
+              className="rounded-full"
+              role="tab"
+              aria-selected={selected}
+              onClick={() => setStage(item.id)}
             >
-              <header className="px-2 py-2">
-                <h2 className="text-sm font-semibold">{stage.title}</h2>
-                <p className="text-xs text-muted-foreground">{stage.hint} · {deals.length}</p>
-              </header>
-              {deals.length === 0 ? (
-                <p className="px-2 py-6 text-center text-xs text-muted-foreground">На этом этапе пусто</p>
-              ) : (
-                <ul className="space-y-2">
-                  {deals.map((deal) => {
-                    const company = data.companies.find((item) => item.id === deal.companyId);
-                    return (
-                      <li key={deal.id}>
-                        <article
-                          draggable
-                          onDragStart={() => setDragging(deal.id)}
-                          className="cursor-grab rounded-xl bg-card p-3 ring-1 ring-foreground/10 active:cursor-grabbing"
-                        >
-                          <Link href={`/deals/${deal.id}`} className="text-sm font-medium hover:underline">{deal.title}</Link>
-                          <p className="mt-1 text-xs text-muted-foreground">{company?.name}</p>
-                          <p className="mt-2 text-sm"><Money value={deal.amount} className="font-medium tabular-nums" /></p>
-                          <p className="mt-1 text-xs text-muted-foreground">{deal.nextStep}</p>
-                          <div className="mt-2 flex justify-end">
-                            <StageJump id={deal.id} stage={deal.stage} />
-                          </div>
-                        </article>
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
-            </section>
+              {item.title} {count}
+            </Button>
           );
         })}
       </div>
-      {data.deals.length === 0 ? (
-        <EmptyState title="Воронка пустая" text="Добавьте сделку, когда появится запрос на оборудование." action={<Button onClick={() => setOpen(true)}>Новая сделка</Button>} />
-      ) : null}
+      <p className="text-sm text-muted-foreground">{current.hint}</p>
+      {deals.length === 0 ? (
+        <EmptyState
+          title={data.deals.length === 0 ? "Воронка пустая" : "На этом этапе пусто"}
+          text={data.deals.length === 0 ? "Добавьте сделку, когда появится запрос на оборудование." : `${current.hint}. Выберите другой этап или переведите сюда карточку.`}
+          action={<Button onClick={() => setOpen(true)}>Новая сделка</Button>}
+        />
+      ) : (
+        <ul className="space-y-2">
+          {deals.map((deal) => {
+            const company = data.companies.find((item) => item.id === deal.companyId);
+            return (
+              <li key={deal.id} className="min-w-0 rounded-2xl bg-card p-4 ring-1 ring-foreground/10">
+                <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="min-w-0 flex-1">
+                    <Link href={`/deals/${deal.id}`} className="break-words text-sm font-medium hover:underline">{deal.title}</Link>
+                    <p className="mt-1 break-words text-xs text-muted-foreground">{company?.name ?? "Компания не указана"}</p>
+                    <p className="mt-2 text-sm"><Money value={deal.amount} className="font-medium tabular-nums" /></p>
+                    <p className="mt-1 break-words text-xs text-muted-foreground">{deal.nextStep}</p>
+                  </div>
+                  <div className="flex w-full min-w-0 flex-col gap-2 sm:w-64 sm:shrink-0">
+                    <ChoiceSelect
+                      label={`Этап ${deal.title}`}
+                      value={deal.stage}
+                      onChange={(value) => moveDeal(deal.id, value as DealStage)}
+                      options={STAGES.map((item) => ({ value: item.id, label: item.title }))}
+                    />
+                    {isAdmin ? (
+                      <Button type="button" variant="outline" size="sm" className="self-start" aria-label={`Удалить сделку ${deal.title}`} onClick={() => setConfirming(deal.id)}>
+                        Удалить
+                      </Button>
+                    ) : null}
+                  </div>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
       <DealDialog open={open} onOpenChange={setOpen} />
+      <ConfirmDelete
+        open={confirmingDeal !== null}
+        title={confirmingDeal ? `Удалить «${confirmingDeal.title}»?` : "Удалить сделку?"}
+        description="Эта сделка исчезнет из воронки. Компания и коммерческие предложения останутся."
+        pending={deleting}
+        onCancel={() => setConfirming(null)}
+        onConfirm={() => {
+          if (!confirmingDeal) return;
+          const id = confirmingDeal.id;
+          setDeleting(true);
+          void removeDeal(id).then((ok) => {
+            setDeleting(false);
+            if (!ok) return;
+            setConfirming(null);
+          });
+        }}
+      />
     </div>
-  );
-}
-
-function StageJump({ id, stage }: { id: string; stage: DealStage }) {
-  const { moveDeal } = useCrm();
-  return (
-    <label className="md:sr-only">
-      <span className="sr-only">Этап</span>
-      <select
-        className="h-7 rounded-md border bg-background px-1 text-xs"
-        value={stage}
-        aria-label="Сменить этап"
-        onChange={(event) => moveDeal(id, event.target.value as DealStage)}
-      >
-        {STAGES.map((item) => (
-          <option key={item.id} value={item.id}>{item.title}</option>
-        ))}
-      </select>
-    </label>
   );
 }

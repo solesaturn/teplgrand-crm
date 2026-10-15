@@ -485,6 +485,7 @@ type CrmApi = {
   removeTask: (id: string) => Promise<boolean>;
   removeContact: (id: string) => Promise<boolean>;
   removeClient: (id: string) => Promise<boolean>;
+  removeDeal: (id: string) => Promise<boolean>;
   addLead: (input: Omit<Lead, "id" | "sellerId" | "demo" | "createdAt"> & { note?: string }) => string;
   setLeadGroup: (id: string, group: LeadGroup) => void;
   updateLead: (
@@ -597,6 +598,7 @@ export function CrmProvider({ children }: { children: React.ReactNode }) {
       removeTask: (id) => adminDelete(`/api/tasks/${encodeURIComponent(id)}`, "Задача удалена"),
       removeContact: (id) => adminDelete(`/api/contacts/${encodeURIComponent(id)}`, "Контакт удалён"),
       removeClient: (id) => adminDelete(`/api/clients/${encodeURIComponent(id)}`, "Клиент удалён"),
+      removeDeal: (id) => adminDelete(`/api/deals/${encodeURIComponent(id)}`, "Сделка удалена"),
       addLead: (input) => {
         const sellerId = currentSellerId();
         if (!sellerId) return "";
@@ -717,12 +719,30 @@ export function CrmProvider({ children }: { children: React.ReactNode }) {
         return id;
       },
       moveDeal: (id, stage) => {
+        const current = readClient();
+        if (current.status !== "ready" || !current.session) return;
         mutate((draft) => {
           const deal = draft.deals.find((item) => item.id === id);
           if (!deal || deal.stage === stage) return;
           deal.stage = stage;
           deal.updatedAt = todayIso();
         });
+        if (current.session.kind !== "admin") return;
+        void (async () => {
+          const response = await fetch(`/api/deals/${encodeURIComponent(id)}`, {
+            method: "PATCH",
+            cache: "no-store",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ stage }),
+          });
+          const body = await readJson(response);
+          if (!response.ok || !body) {
+            toast.error(body?.error ?? "Не удалось сменить этап.");
+            return;
+          }
+          const session = readClient().session;
+          if (session?.kind === "admin") applyPayload(session, body);
+        })();
       },
       updateDeal: (id, patch) => {
         mutate((draft) => {

@@ -2,9 +2,9 @@ import { mkdir, readFile, rename, writeFile } from "fs/promises";
 import path from "path";
 import { randomBytes } from "crypto";
 import postgres from "postgres";
-import { uid } from "@/lib/format";
+import { todayIso, uid } from "@/lib/format";
 import { normalizeLogin } from "@/lib/auth";
-import type { CrmData, Session } from "@/lib/types";
+import type { CrmData, DealStage, Session } from "@/lib/types";
 import { hashPassword, verifyPassword } from "@/lib/server/passwords";
 import { ensureShape, mergeSellerDesk, seedDesk } from "@/lib/server/desk";
 
@@ -402,6 +402,38 @@ export async function deleteClient(id: string) {
       return;
     }
     draft.companies = draft.companies.filter((company) => company.id !== id);
+  });
+  return { ok: !missing, data };
+}
+
+const DEAL_STAGES: DealStage[] = ["new", "qualify", "offer", "negotiate", "invoice", "won", "lost"];
+
+export async function setDealStage(id: string, stage: string) {
+  if (!DEAL_STAGES.includes(stage as DealStage)) {
+    return { ok: false as const, error: "Такого этапа нет.", status: 400 };
+  }
+  let missing = false;
+  const data = await updateData((draft) => {
+    const deal = draft.deals.find((item) => item.id === id);
+    if (!deal) {
+      missing = true;
+      return;
+    }
+    deal.stage = stage as DealStage;
+    deal.updatedAt = todayIso();
+  });
+  if (missing) return { ok: false as const, error: "Такой сделки уже нет.", status: 404 };
+  return { ok: true as const, data };
+}
+
+export async function deleteDeal(id: string) {
+  let missing = false;
+  const data = await updateData((draft) => {
+    if (!draft.deals.some((deal) => deal.id === id)) {
+      missing = true;
+      return;
+    }
+    draft.deals = draft.deals.filter((deal) => deal.id !== id);
   });
   return { ok: !missing, data };
 }

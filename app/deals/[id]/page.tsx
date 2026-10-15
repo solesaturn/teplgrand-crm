@@ -2,9 +2,10 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ConfirmDelete } from "@/components/confirm-delete";
 import { OfferDialog, TaskDialog } from "@/components/record-dialogs";
 import { ChoiceSelect, CrmGate, EmptyState, Money, PageHeading } from "@/components/crm-ui";
 import { useCrm } from "@/lib/crm-context";
@@ -23,10 +24,14 @@ export default function DealPage() {
 
 function Deal() {
   const params = useParams<{ id: string }>();
-  const { data, updateDeal } = useCrm();
+  const router = useRouter();
+  const { data, session, updateDeal, moveDeal, removeDeal } = useCrm();
+  const isAdmin = session?.kind === "admin";
   const deal = data.deals.find((item) => item.id === params.id);
   const [offerOpen, setOfferOpen] = useState(false);
   const [taskOpen, setTaskOpen] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   if (!deal) {
     return <EmptyState title="Сделка не найдена" text="Такой сделки нет. Вернитесь к воронке." action={<Button nativeButton={false} render={<Link href="/pipeline" />}>К воронке</Button>} />;
@@ -47,6 +52,11 @@ function Deal() {
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" onClick={() => setTaskOpen(true)}>Напоминание</Button>
             <Button onClick={() => setOfferOpen(true)}>Собрать КП</Button>
+            {isAdmin ? (
+              <Button type="button" variant="outline" aria-label={`Удалить сделку ${deal.title}`} onClick={() => setConfirming(true)}>
+                Удалить сделку
+              </Button>
+            ) : null}
           </div>
         }
       />
@@ -60,7 +70,7 @@ function Deal() {
           <ChoiceSelect
             label="Этап сделки"
             value={deal.stage}
-            onChange={(value) => updateDeal(deal.id, { stage: value as DealStage })}
+            onChange={(value) => moveDeal(deal.id, value as DealStage)}
             options={STAGES.map((item) => ({ value: item.id, label: item.title }))}
           />
         </div>
@@ -103,6 +113,23 @@ function Deal() {
         )}
       </section>
 
+      <ConfirmDelete
+        open={confirming}
+        title={`Удалить «${deal.title}»?`}
+        description="Эта сделка исчезнет из воронки. Компания и коммерческие предложения останутся."
+        pending={deleting}
+        onCancel={() => setConfirming(false)}
+        onConfirm={() => {
+          const id = deal.id;
+          setDeleting(true);
+          void removeDeal(id).then((ok) => {
+            setDeleting(false);
+            if (!ok) return;
+            setConfirming(false);
+            router.push("/pipeline");
+          });
+        }}
+      />
       <OfferDialog open={offerOpen} onOpenChange={setOfferOpen} companyId={deal.companyId} dealId={deal.id} />
       <TaskDialog open={taskOpen} onOpenChange={setTaskOpen} companyId={deal.companyId} dealId={deal.id} contactId={deal.contactId ?? undefined} />
     </div>
