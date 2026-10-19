@@ -9,6 +9,7 @@ import {
   LayoutDashboard,
   Library,
   Menu,
+  CalendarClock,
   PhoneCall,
   Rows3,
   Shield,
@@ -26,6 +27,7 @@ import { cn } from "cn";
 const PRIMARY = [
   { href: "/", label: "Обзор", icon: LayoutDashboard },
   { href: "/leads", label: "Лиды", icon: PhoneCall },
+  { href: "/today", label: "Сегодня", icon: CalendarClock },
   { href: "/clients", label: "Клиенты", icon: Building2 },
   { href: "/pipeline", label: "Сделки", icon: Rows3 },
   { href: "/offers", label: "КП", icon: FileSpreadsheet },
